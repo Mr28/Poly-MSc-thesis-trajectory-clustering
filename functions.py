@@ -660,12 +660,15 @@ def Plot(model, distMatrix, trajIndices=None, S=np.array([]), closestCluster=np.
 #     #     sClusters.append(clusList)
 
 
-def OdClustering(funcTrajectories, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], visualize=False, test=True, darkTheme=False):
+def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], visualize=False, test=True, darkTheme=False):
 
     if darkTheme:
         tickColors = 'white'
     else:
         tickColors = 'black'
+
+    if nTraj==None:
+        nTraj = len(funcTrajectories)
 
     startPoints = np.zeros((nTraj,2))
     endPoints = np.zeros((nTraj,2))
@@ -818,7 +821,7 @@ def OdClustering(funcTrajectories, modelList=None, nClusOriginSet=[4], nClusDest
         savetxt('./data/'+dataName+"_startLabels.CSV", startLabels, delimiter=',')
         savetxt('./data/'+dataName+"_endLabels.CSV", endLabels, delimiter=',')
 
-    return startLabels, endLabels, startPoints, endPoints
+    return startLabels, endLabels, startPoints, endPoints, nClusStart, nClusEnd
 
 
 def TestOdClustering(modelList=None, nClusOriginSet=[4], nClusDestSet=[4], modelNames=['average Agglo-Hierarch'], nIter=1, funcTrajectories=None, visualize=False, shuffle=False, test=True, darkTheme=False):
@@ -1010,10 +1013,11 @@ def TestOdClustering(modelList=None, nClusOriginSet=[4], nClusDestSet=[4], model
     for i in range(len(shufIndices)):
         unShufStartLabels[i] = startLabels[shufIndices[i]]
         unShufEndLabels[i] = endLabels[shufIndices[i]]
-    return unShufStartLabels, unShufEndLabels, startPoints, endPoints#, startAvgDists
+
+    return unShufStartLabels, unShufEndLabels, startPoints, endPoints, nClusStart, nClusEnd#, startAvgDists
 
 
-def OdMajorClusters(startLabels=None, endLabels=None, threshold=10, visualize=False, test=True, load=False):
+def OdMajorClusters(trajectories, startLabels=None, endLabels=None, threshold=10, visualize=False, test=True, load=False):
 
     if load:
         try:
@@ -1090,7 +1094,7 @@ def OdMajorClusters(startLabels=None, endLabels=None, threshold=10, visualize=Fa
     return refTrajIndices, odTrajLabels
 
 
-def Main(clusRange=list(range(2,15)), nIter=3, modelList=None, dataName="inD1", test=True, seed=0.860161037286291):
+def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, nClusEnd, clusRange=list(range(2,15)), nIter=3, modelList=None, dataName="inD1", test=True, seed=0.860161037286291):
 
     t = Time('start')
     random.seed(seed)
@@ -1179,6 +1183,7 @@ def Main(clusRange=list(range(2,15)), nIter=3, modelList=None, dataName="inD1", 
         os.mkdir('./data/'+dataName+"_output")
     except:
         pass
+
     if not test:
         pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_ARIs.pickle", "wb")
         pickle.dump(ARIs, pickle_out)
@@ -1189,7 +1194,6 @@ def Main(clusRange=list(range(2,15)), nIter=3, modelList=None, dataName="inD1", 
         pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_posSRatios.pickle", "wb")
         pickle.dump(posSRatios, pickle_out)
         pickle_out.close()
-
 
     for idxMatrix, (distMatrix, f) in enumerate(tempDistMatrices):
         cprint(f, color='green', on_color='on_grey')
@@ -1221,7 +1225,7 @@ def Main(clusRange=list(range(2,15)), nIter=3, modelList=None, dataName="inD1", 
         fig.legend(loc='lower left')
         fig.set_title("positive sil. value ratio")
         # plt.title(f, color='w')
-        plt.savefig('./data/'+dataName+"_output/"+dataName+"_graphs.pdf", dpi=300)
+        plt.savefig('./data/'+dataName+"_output/"+dataName+'_'+f[:-4]+"_graphs.pdf", dpi=300)
 
         plt.show()
     
