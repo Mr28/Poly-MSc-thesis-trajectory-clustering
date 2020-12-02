@@ -824,7 +824,7 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
     return startLabels, endLabels, startPoints, endPoints, nClusStart, nClusEnd
 
 
-def TestOdClustering(modelList=None, nClusOriginSet=[4], nClusDestSet=[4], modelNames=['average Agglo-Hierarch'], nIter=1, funcTrajectories=None, visualize=False, shuffle=False, test=True, darkTheme=False):
+def TestOdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], modelNames=['average Agglo-Hierarch'], nIter=1, funcTrajectories=None, visualize=False, shuffle=False, test=True, darkTheme=False):
 
     if darkTheme:
         tickColors = 'white'
@@ -878,11 +878,11 @@ def TestOdClustering(modelList=None, nClusOriginSet=[4], nClusDestSet=[4], model
             for i in range(len(shufIndices)):
                 shufStartPoints[shufIndices[i]] = startPoints[i]
                 shufEndPoints[shufIndices[i]] = endPoints[i]
-            # shufStartPoints = startPoints.copy()
-            # shufEndPoints = endPoints.copy()
-            # if shuffle:
-            #     random.shuffle(shufStartPoints)
-            #     random.shuffle(shufEndPoints)
+            shufStartPoints = startPoints.copy()
+            shufEndPoints = endPoints.copy()
+            if shuffle:
+                random.shuffle(shufStartPoints)
+                random.shuffle(shufEndPoints)
             # t = Time(text=title)
             for i in range(len(nClusOriginSet)):
                 # t = Time("nClus={}".format(nClusOriginSet[i]))
@@ -1200,8 +1200,8 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
         plt.figure(figsize=(24,6))
         fig = plt.subplot(1,3,1)
         for i in range(len(modelList)):
-            fig.plot(clusRange, np.mean(ARIs[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-            fig.fill_between(clusRange, np.mean(ARIs[idxMatrix, i], axis=-1)-np.std(ARIs[idxMatrix, i], axis=-1), np.mean(ARIs[idxMatrix, i], axis=-1)+np.std(ARIs[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
+            fig.plot(clusRange, np.nanmean(ARIs[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
+            fig.fill_between(clusRange, np.nanmean(ARIs[idxMatrix, i], axis=-1)-np.nanstd(ARIs[idxMatrix, i], axis=-1), np.nanmean(ARIs[idxMatrix, i], axis=-1)+np.nanstd(ARIs[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
         fig.set_ylim(0,1)
         fig.set_xlim(0,max(clusRange))
         fig.legend(loc='lower left')
@@ -1209,8 +1209,8 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
 
         fig = plt.subplot(1,3,2)
         for i in range(len(modelList)):
-            fig.plot(clusRange, np.mean(avgSs[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-            fig.fill_between(clusRange, np.mean(avgSs[idxMatrix, i], axis=-1)-np.std(avgSs[idxMatrix, i], axis=-1), np.mean(avgSs[idxMatrix, i], axis=-1)+np.std(avgSs[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
+            fig.plot(clusRange, np.nanmean(avgSs[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
+            fig.fill_between(clusRange, np.nanmean(avgSs[idxMatrix, i], axis=-1)-np.nanstd(avgSs[idxMatrix, i], axis=-1), np.nanmean(avgSs[idxMatrix, i], axis=-1)+np.nanstd(avgSs[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
         fig.set_ylim(-1,1)
         fig.set_xlim(0,max(clusRange))
         fig.legend(loc='lower left')
@@ -1218,8 +1218,8 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
 
         fig = plt.subplot(1,3,3)
         for i in range(len(modelList)):
-            fig.plot(clusRange, np.mean(posSRatios[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-            fig.fill_between(clusRange, np.mean(posSRatios[idxMatrix, i], axis=-1)-np.std(posSRatios[idxMatrix, i], axis=-1), np.mean(posSRatios[idxMatrix, i], axis=-1)+np.std(posSRatios[idxMatrix, i], axis=-1), alpha=0.3, color=colormap[i])#, label=modelList[i][1])
+            fig.plot(clusRange, np.nanmean(posSRatios[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
+            fig.fill_between(clusRange, np.nanmean(posSRatios[idxMatrix, i], axis=-1)-np.nanstd(posSRatios[idxMatrix, i], axis=-1), np.nanmean(posSRatios[idxMatrix, i], axis=-1)+np.nanstd(posSRatios[idxMatrix, i], axis=-1), alpha=0.3, color=colormap[i])#, label=modelList[i][1])
         fig.set_ylim(0,1)
         fig.set_xlim(0,max(clusRange))
         fig.legend(loc='lower left')
