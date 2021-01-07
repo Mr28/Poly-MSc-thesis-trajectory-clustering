@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import datetime, sqlite3, os, os.path, scipy, math, pickle, sys, random, shlex, subprocess
+import datetime, sqlite3, os, os.path, scipy, math, pickle, sys, random, shlex, subprocess, inspect
 from termcolor import cprint
 from scipy import spatial
 import sqlite3 as sqlLib
@@ -18,15 +18,18 @@ from numba import guvectorize
 
 import sklearn, sklearn.cluster, sklearn.mixture
 
+
 def shCommand(text):
     cmd = shlex.split(text)
     subprocess.run(cmd)
 
+
 shCommand("pip install dtw-python")
-from dtw import *
+# from dtw import *
 shCommand("pip install scikit-learn-extra")
 import sklearn_extra
 import sklearn_extra.cluster
+
 
 def Time(text="time", prnt=True, color='green', on_color='on_grey'):
     tz = timezone('Canada/Eastern')
@@ -34,6 +37,7 @@ def Time(text="time", prnt=True, color='green', on_color='on_grey'):
     if prnt:
         cprint(text+": "+str(dt), color=color, on_color=on_color)
     return dt
+
 
 def LoadData(dataName="inD1"):
     shCommand("mkdir ./data")
@@ -44,6 +48,7 @@ def LoadData(dataName="inD1"):
         shCommand("wget -O ./data/NGSIM.zip https://www.dropbox.com/s/cvg1jvstqu7apga/NGSIM_intersection.zip?dl=0")
         shCommand("unzip -o -q ./data/NGSIM.zip -d ./data")
     t = Time('data loaded and unzipped')
+
 
 def RecordingList(directory, dataName="inD1"):
     if dataName.startswith("inD1"):
@@ -59,7 +64,8 @@ def RecordingList(directory, dataName="inD1"):
     return files
 
 
-def SqlRead(files, dataName="inD1", database="inD_database.db"):
+def SqlRead(files, dataName="inD1"):
+    database = dataName + "_database.db"
     connection = sqlLib.connect(database)
     cursor = connection.cursor()
     cursor.execute("""DROP TABLE IF EXISTS TrackPoints""")
@@ -78,7 +84,7 @@ def SqlRead(files, dataName="inD1", database="inD_database.db"):
                             )""")
     for idx, f in enumerate(files):
         try:
-            if dataName.startswith("inD1"):
+            if dataName.startswith("inD"):
                 data = pd.read_csv('./data/inD/data/'+f, header=0)
                 cursor.executemany("""INSERT INTO TrackPoints VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                                         )""", data.values[:])
@@ -94,8 +100,10 @@ def SqlRead(files, dataName="inD1", database="inD_database.db"):
     connection.commit()
     connection.close()
 
+
 #### limited to 1800 points in trajectory
-def TrajList(database="inD_database.db", intId=5, dataName="inD1", maxTrajLength=1800):
+def TrajList(intId=5, dataName="inD1", maxTrajLength=1800, nSample=None):
+    database = dataName + "_database.db"
     connection = sqlLib.connect(database)
     cursor = connection.cursor()
     if dataName.startswith("inD"):
@@ -108,9 +116,13 @@ def TrajList(database="inD_database.db", intId=5, dataName="inD1", maxTrajLength
                             WHERE count<{} AND intId={}""".format(maxTrajLength, intId))
     trajList = np.array(cursor.fetchall(), dtype=int)
     connection.close()
+    if nSample!=None:
+        trajList = trajList[:min(nSample, trajList.shape[0])]
     return trajList
 
-def Traj(tupleId, database="inD_database.db", dataName="inD1", intXMin=None, intXMax=None, intYMin=None, intYMax=None):
+
+def Traj(tupleId, dataName="inD1", intXMin=None, intXMax=None, intYMin=None, intYMax=None):
+    database = dataName + "_database.db"
     connection = sqlLib.connect(database)
     cursor = connection.cursor()
     if dataName.startswith("inD"):
@@ -128,9 +140,9 @@ def Traj(tupleId, database="inD_database.db", dataName="inD1", intXMin=None, int
     return traj
 
 
-def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False, pickleInAllTrajectories=False, test=True, maxTrajLength=1800, plot=False):
+def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False, pickleInAllTrajectories=False, test=True, maxTrajLength=1800, nSample=None, plot=False):
 
-    database = dataName+"_database.db"
+    database = dataName + "_database.db"
 
     if resetDatabase:
         try:
@@ -154,35 +166,29 @@ def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False
                 files = RecordingList(directory="./data/inD/data/", dataName=dataName)
             elif dataName.startswith("NGSIM"):
                 files = RecordingList(directory="./data/NGSIM/data/", dataName=dataName)
-            SqlRead(files, dataName, database)
+            SqlRead(files, dataName)
 
     intXMin, intXMax = None, None
     intYMin, intYMax = None, None
     if dataName.startswith("inD1"):
-        # startTraj = 0
-        # nTraj = 300
         intId = 0
     elif dataName.startswith("inD2"):
-        # startTraj = 0
-        # nTraj = 2033
         intId = 0
     elif dataName.startswith("inD3"):
-        # startTraj = 2033
-        # nTraj = 7784
         intId = 0
     elif dataName.startswith("inD4"):
-        # startTraj = 0
-        # nTraj = 300
         intId = 0
     elif dataName == "NGSIM1":
-        # startTraj = 0
-        # nTraj = 1370
         intId = 1
         intXMin, intXMax = -35, 35
         intYMin, intYMax = 120, 240
+    elif dataName == "NGSIM2":
+        intId = 2
+    elif dataName == "NGSIM3":
+        intId = 3
+    elif dataName == "NGSIM4":
+        intId = 4
     elif dataName == "NGSIM5":
-        # startTraj = 0
-        # nTraj = 1319
         intId = 5
         intXMin, intXMax = -40, 40
         intYMin, intYMax = 1980, 2080
@@ -190,7 +196,7 @@ def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False
         cprint(text="""*\n*\n*\n Incorrect dataName input. It should be either: inD1, inD2, inD3, inD4, NGSIM1 or NGSIM5.\n*\n*\n*"""
             , color='red', on_color='on_grey')
 
-    trajList = TrajList(database, intId=intId, dataName=dataName, maxTrajLength=maxTrajLength)
+    trajList = TrajList(intId=intId, dataName=dataName, maxTrajLength=maxTrajLength, nSample=nSample)
 
     if pickleInAllTrajectories:
         try:
@@ -214,10 +220,9 @@ def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False
         trajectories = []
         # for i in range(len(trajList)):
         for i in range(len(trajList)):
-            if trajList[i,0] == 0:
-                tr = Traj(trajList[i], database, dataName=dataName, intXMin=intXMin, intXMax=intXMax, intYMin=intYMin, intYMax=intYMax)
-                if tr.shape[0]>0:
-                    trajectories.append(tr)
+            tr = Traj(trajList[i], dataName=dataName, intXMin=intXMin, intXMax=intXMax, intYMin=intYMin, intYMax=intYMax)
+            if tr.shape[0]>0:
+                trajectories.append(tr)
         t = Time(text='trajectories loaded')
         if dataName.startswith("inD"):
             pickle_out = open("./data/inDTrajectories.pickle", "wb")
@@ -660,7 +665,9 @@ def Plot(model, distMatrix, trajIndices=None, S=np.array([]), closestCluster=np.
 #     #     sClusters.append(clusList)
 
 
-def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], visualize=False, test=True, darkTheme=False):
+def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], modelNames=['average Agglo-Hierarch'], nIter=1, visualize=False, shuffle=False, test=True, darkTheme=False):
+    if shuffle or len(nClusOriginSet)>1 or len(nClusDestSet)>1:
+        cprint('\n The internal set of trejecories and thus the output labels go out of sync with the input "trajectories" set if shuffle==True or len(nClusOriginSet)>1 or len(nClusDestSet)>1.\n', color='red', on_color='on_grey')
 
     if darkTheme:
         tickColors = 'white'
@@ -669,180 +676,13 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
 
     if nTraj==None:
         nTraj = len(funcTrajectories)
-
+    
     startPoints = np.zeros((nTraj,2))
     endPoints = np.zeros((nTraj,2))
     for i in range(nTraj):
         tr = funcTrajectories[i]
         startPoints[i] = tr[0]
         endPoints[i] = tr[-1]
-
-    # nClusOriginSet, nClusDestSet = [i for i in range(1,30)], [i for i in range(1,30)]
-    # nClusOriginSet, nClusDestSet, visualize = [11], [4], True
-
-    startAvgDists = np.zeros(len(nClusOriginSet))
-    endAvgDists = np.zeros(len(nClusDestSet))
-    minTrajX = min([min(tr[:, 0]) for tr in funcTrajectories])
-    minTrajY = min([min(tr[:, 1]) for tr in funcTrajectories])
-    maxTrajX = max([max(tr[:, 0]) for tr in funcTrajectories])
-    maxTrajY = max([max(tr[:, 1]) for tr in funcTrajectories])
-
-    if modelList == None:
-        modelList = [
-            # (sklearn_extra.cluster.KMedoids(metric='euclidean'), 'KMedoids')
-            # ,(sklearn.cluster.KMeans(precompute_distances='auto', n_jobs=-1), 'KMeans')
-            # ,(sklearn.cluster.AgglomerativeClustering(affinity='euclidean', linkage='ward'), 'ward Agglo-Hierarch')
-            # ,(sklearn.cluster.AgglomerativeClustering(affinity='euclidean', linkage='complete'), 'complete Agglo-Hierarch')
-            (sklearn.cluster.AgglomerativeClustering(affinity='euclidean', linkage='average'), 'average Agglo-Hierarch')
-            # ,(sklearn.cluster.AgglomerativeClustering(affinity='euclidean', linkage='single'), 'single Agglo-Hierarch')
-            # ,(sklearn.cluster.Birch(threshold=0.5, branching_factor=50), 'BIRCH')
-            # ,(sklearn.mixture.GaussianMixture(covariance_type='full', tol=0.001, reg_covar=1e-06, max_iter=200, n_init=5, init_params='kmeans'), 'GMM')
-            # ,(sklearn.cluster.SpectralClustering(affinity='rbf', n_jobs=-1), 'Spectral')
-            # ,(sklearn.cluster.OPTICS(metric='minkowski', n_jobs=-1), 'OPTICS')
-            # ,(sklearn.cluster.DBSCAN(metric='euclidean', n_jobs=-1), 'DBSCAN')
-            ]
-
-    for model, title in modelList:
-        # t = Time(text=title)
-        for i in range(len(nClusOriginSet)):
-            # t = Time("nClus={}".format(nClusOriginSet[i]))
-            model1 = model
-            try:
-                if title=="GMM":
-                    model1.n_components = nClusOriginSet[i]
-                else:
-                    model1.n_clusters = nClusOriginSet[i]
-            except:
-                pass
-            startModel = model1.fit(startPoints[:nTraj])
-            try:
-                startLabels = list(startModel.labels_)
-            except:
-                startLabels = list(startModel.predict(startPoints[:nTraj]))
-
-            model2 = model
-            try:
-                if title=="GMM":
-                    model2.n_components = nClusDestSet[i]
-                else:
-                    model2.n_clusters = nClusDestSet[i]
-            except:
-                pass
-            endModel = model2.fit(endPoints[:nTraj])
-            try:
-                endLabels = list(endModel.labels_)
-            except:
-                endLabels = list(endModel.predict(endPoints[:nTraj]))
-
-            startLabelList = list(set(startLabels))
-            endLabelList = list(set(endLabels))
-            nClusStart = len(startLabelList)
-            nClusEnd = len(endLabelList)
-
-            try:
-                startCenters = startModel.cluster_centers_
-                endCenters = endModel.cluster_centers_
-            except:
-                startCenters = np.zeros((nClusStart,2))
-                endCenters = np.zeros((nClusEnd,2))
-                for k in range(nClusStart):
-                    clusPoints = startPoints[startLabels == startLabelList[k]]
-                    startCenters[k] = np.average(clusPoints, axis=0)
-                for k in range(nClusEnd):
-                    clusPoints = endPoints[endLabels == endLabelList[k]]
-                    endCenters[k] = np.average(clusPoints, axis= 0)    
-
-            startDistSum = 0
-            for k in range(nClusStart):
-                clusPoints = startPoints[startLabels == startLabelList[k]]
-                for point in clusPoints:
-                    startDistSum += ((point[0]-startCenters[k,0])**2 + (point[1]-startCenters[k,1])**2)**0.5
-            startAvgDists[i] = startDistSum/len(startLabels)
-            # print(startAvgDists[i])
-
-            endDistSum = 0
-            for k in range(nClusEnd):
-                clusPoints = endPoints[endLabels == endLabelList[k]]
-                for point in clusPoints:
-                    endDistSum += ((point[0]-endCenters[k,0])**2 + (point[1]-endCenters[k,1])**2)**0.5
-            endAvgDists[i] = endDistSum/len(endLabels)
-            # print(endAvgDists[i])
-
-
-            if visualize:# and len(nClusOriginSet)>1 and len(nClusDestSet)>1:
-                print(nClusStart, nClusEnd)
-                try:
-                    print("Calinski Harabasz: {} & {}".format(
-                        sklearn.metrics.calinski_harabasz_score(startPoints[:nTraj], startLabels)
-                        ,sklearn.metrics.calinski_harabasz_score(endPoints[:nTraj], endLabels)))
-                except:
-                    pass
-
-                print("nClusStart={}, nClusEnd={}".format(nClusStart, nClusEnd))
-                cmap = list(colors.TABLEAU_COLORS)
-                colormap = cmap
-                repeat = max(nClusStart,nClusEnd)//len(cmap)
-                for k in range(repeat):
-                    colormap = colormap + cmap
-
-                plt.figure(figsize=(16,6))
-                fig = plt.subplot(1,2,1)
-                for k in range(nTraj):
-                    fig.scatter(startPoints[k,0], startPoints[k,1], c=colormap[startLabels[k]])
-                fig.scatter(startCenters[:,0], startCenters[:,1], c='black')
-                fig.set_title("Origin clusters")
-                fig.tick_params(colors=tickColors)
-                fig = plt.subplot(1,2,2)
-                for k in range(nTraj):
-                    fig.scatter(endPoints[k,0], endPoints[k,1], c=colormap[endLabels[k]])
-                fig.scatter(endCenters[:,0], endCenters[:,1], c='black')
-                fig.tick_params(colors=tickColors)
-                plt.show()
-
-    if len(nClusOriginSet)>1 or len(nClusDestSet)>1:
-        plt.figure(figsize=(16,6))
-        fig = plt.subplot(1,2,1)
-        fig.set_ylim(0,50)
-        fig.scatter(nClusOriginSet, startAvgDists)
-        fig.tick_params(colors=tickColors)
-        fig.set_title("Origin clusters")
-        fig = plt.subplot(1,2,2)
-        fig.set_ylim(0,50)
-        fig.scatter(nClusDestSet, endAvgDists)
-        fig.tick_params(colors=tickColors)
-        fig.set_title("Destination clusters")
-        plt.show()
-
-    if not test:
-        try:
-            os.mkdir("./data/"+dataName+"_output")
-        except:
-            pass
-        savetxt('./data/'+dataName+"_startLabels.CSV", startLabels, delimiter=',')
-        savetxt('./data/'+dataName+"_endLabels.CSV", endLabels, delimiter=',')
-
-    return startLabels, endLabels, startPoints, endPoints, nClusStart, nClusEnd
-
-
-def TestOdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], modelNames=['average Agglo-Hierarch'], nIter=1, funcTrajectories=None, visualize=False, shuffle=False, test=True, darkTheme=False):
-
-    if darkTheme:
-        tickColors = 'white'
-    else:
-        tickColors = 'black'
-
-    if funcTrajectories == None:
-        funcTrajectories = trajectories
-
-    startPoints = np.zeros((nTraj,2))
-    endPoints = np.zeros((nTraj,2))
-    for i in range(nTraj):
-        tr = funcTrajectories[i]
-        startPoints[i] = tr[0]
-        endPoints[i] = tr[-1]
-
-    # nClusOriginSet, nClusDestSet = [i for i in range(1,30)], [i for i in range(1,30)]
-    # nClusOriginSet, nClusDestSet, visualize = [11], [4], True
 
     startAvgDists = np.zeros((len(nClusOriginSet), nIter))
     endAvgDists = np.zeros((len(nClusDestSet), nIter))
@@ -871,18 +711,20 @@ def TestOdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSe
     for model, title in pickedModels:
         for iter in range(nIter):
             shufIndices = [i for i in range(len(startPoints))]
-            if shuffle:
+            if shuffle or len(nClusOriginSet)>1 or len(nClusDestSet)>1:
                 random.shuffle(shufIndices)
             shufStartPoints = np.zeros_like(startPoints)
             shufEndPoints = np.zeros_like(endPoints)
             for i in range(len(shufIndices)):
                 shufStartPoints[shufIndices[i]] = startPoints[i]
                 shufEndPoints[shufIndices[i]] = endPoints[i]
+
             shufStartPoints = startPoints.copy()
             shufEndPoints = endPoints.copy()
-            if shuffle:
+            if shuffle or len(nClusOriginSet)>1 or len(nClusDestSet)>1:
                 random.shuffle(shufStartPoints)
                 random.shuffle(shufEndPoints)
+
             # t = Time(text=title)
             for i in range(len(nClusOriginSet)):
                 # t = Time("nClus={}".format(nClusOriginSet[i]))
@@ -899,7 +741,42 @@ def TestOdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSe
                     startLabels = list(startModel.labels_)
                 except:
                     startLabels = list(startModel.predict(shufStartPoints))
-
+                startLabelList = list(set(startLabels))
+                nClusStart = len(startLabelList)
+                try:
+                    startCenters = startModel.cluster_centers_
+                except:
+                    startCenters = np.zeros((nClusStart,2))
+                    for k in range(nClusStart):
+                        clusPoints = shufStartPoints[startLabels == startLabelList[k]]
+                        startCenters[k] = np.average(clusPoints, axis=0)
+                startDistSum = 0
+                for k in range(nClusStart):
+                    clusPoints = shufStartPoints[startLabels == startLabelList[k]]
+                    for point in clusPoints:
+                        startDistSum += ((point[0]-startCenters[k,0])**2 + (point[1]-startCenters[k,1])**2)**0.5
+                startAvgDists[i, iter] = startDistSum/len(startLabels)
+                # print(startAvgDists[i])
+                if visualize:# and len(nClusOriginSet)>1 and len(nClusDestSet)>1:
+                    try:
+                        print("Calinski Harabasz: {}".format(sklearn.metrics.calinski_harabasz_score(shufStartPoints, startLabels)))
+                    except:
+                        pass
+                    print("nClusStart={}".format(nClusStart))
+                    cmap = list(colors.TABLEAU_COLORS)
+                    colormap = cmap
+                    repeat = nClusStart//len(cmap)
+                    for k in range(repeat):
+                        colormap = colormap + cmap
+                    plt.figure(figsize=(8,6))
+                    for k in range(nTraj):
+                        plt.scatter(shufStartPoints[k,0], shufStartPoints[k,1], c=colormap[startLabels[k]])
+                    plt.scatter(startCenters[:,0], startCenters[:,1], c='black')
+                    plt.tick_params(colors=tickColors)
+                
+            # t = Time(text=title)
+            for i in range(len(nClusDestSet)):
+                # t = Time("nClus={}".format(nClusOriginSet[i]))
                 model2 = model
                 try:
                     if title=="GMM":
@@ -913,33 +790,15 @@ def TestOdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSe
                     endLabels = list(endModel.labels_)
                 except:
                     endLabels = list(endModel.predict(shufEndPoints))
-
-                startLabelList = list(set(startLabels))
                 endLabelList = list(set(endLabels))
-                nClusStart = len(startLabelList)
                 nClusEnd = len(endLabelList)
-
                 try:
-                    startCenters = startModel.cluster_centers_
                     endCenters = endModel.cluster_centers_
                 except:
-                    startCenters = np.zeros((nClusStart,2))
                     endCenters = np.zeros((nClusEnd,2))
-                    for k in range(nClusStart):
-                        clusPoints = shufStartPoints[startLabels == startLabelList[k]]
-                        startCenters[k] = np.average(clusPoints, axis=0)
                     for k in range(nClusEnd):
                         clusPoints = shufEndPoints[endLabels == endLabelList[k]]
-                        endCenters[k] = np.average(clusPoints, axis= 0)    
-
-                startDistSum = 0
-                for k in range(nClusStart):
-                    clusPoints = shufStartPoints[startLabels == startLabelList[k]]
-                    for point in clusPoints:
-                        startDistSum += ((point[0]-startCenters[k,0])**2 + (point[1]-startCenters[k,1])**2)**0.5
-                startAvgDists[i, iter] = startDistSum/len(startLabels)
-                # print(startAvgDists[i])
-
+                        endCenters[k] = np.average(clusPoints, axis= 0)
                 endDistSum = 0
                 for k in range(nClusEnd):
                     clusPoints = shufEndPoints[endLabels == endLabelList[k]]
@@ -947,36 +806,22 @@ def TestOdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSe
                         endDistSum += ((point[0]-endCenters[k,0])**2 + (point[1]-endCenters[k,1])**2)**0.5
                 endAvgDists[i, iter] = endDistSum/len(endLabels)
                 # print(endAvgDists[i])
-
-
                 if visualize:# and len(nClusOriginSet)>1 and len(nClusDestSet)>1:
-                    print(nClusStart, nClusEnd)
                     try:
-                        print("Calinski Harabasz: {} & {}".format(
-                            sklearn.metrics.calinski_harabasz_score(shufStartPoints, startLabels)
-                            ,sklearn.metrics.calinski_harabasz_score(shufEndPoints, endLabels)))
+                        print("Calinski Harabasz: {}".format(sklearn.metrics.calinski_harabasz_score(shufEndPoints, endLabels)))
                     except:
                         pass
-
-                    print("nClusStart={}, nClusEnd={}".format(nClusStart, nClusEnd))
+                    print("nClusEnd={}".format(nClusEnd))
                     cmap = list(colors.TABLEAU_COLORS)
                     colormap = cmap
-                    repeat = max(nClusStart,nClusEnd)//len(cmap)
+                    repeat = nClusEnd//len(cmap)
                     for k in range(repeat):
                         colormap = colormap + cmap
-
-                    plt.figure(figsize=(16,6))
-                    fig = plt.subplot(1,2,1)
+                    plt.figure(figsize=(8,6))
                     for k in range(nTraj):
-                        fig.scatter(shufStartPoints[k,0], shufStartPoints[k,1], c=colormap[startLabels[k]])
-                    fig.scatter(startCenters[:,0], startCenters[:,1], c='black')
-                    fig.set_title("Origin clusters")
-                    fig.tick_params(colors=tickColors)
-                    fig = plt.subplot(1,2,2)
-                    for k in range(nTraj):
-                        fig.scatter(shufEndPoints[k,0], shufEndPoints[k,1], c=colormap[endLabels[k]])
-                    fig.scatter(endCenters[:,0], endCenters[:,1], c='black')
-                    fig.tick_params(colors=tickColors)
+                        plt.scatter(shufEndPoints[k,0], shufEndPoints[k,1], c=colormap[endLabels[k]])
+                    plt.scatter(endCenters[:,0], endCenters[:,1], c='black')
+                    plt.tick_params(colors=tickColors)
                     plt.show()
 
     meanStartAvgDist = np.mean(startAvgDists, axis=-1)
@@ -1094,12 +939,36 @@ def OdMajorClusters(trajectories, startLabels=None, endLabels=None, threshold=10
     return refTrajIndices, odTrajLabels
 
 
-def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, nClusEnd, clusRange=list(range(2,15)), nIter=3, modelList=None, dataName="inD1", test=True, seed=0.860161037286291):
+class EvalFuncs():
+    def AvgSManual(self, X, odLabels, trajLabels, S):
+        return np.mean(S)
+    def PosSRatioManual(self, X, odLabels, trajLabels, S):
+        return len(np.where(S>0)[0])/len(S)
+    def ARI(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.adjusted_rand_score(odLabels, trajLabels)
+    def MI(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.mutual_info_score(odLabels, trajLabels)
+    def Homogeneity(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.homogeneity_score(odLabels, trajLabels)
+    def Completeness(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.completeness_score(odLabels, trajLabels)
+    def V(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.v_measure_score(odLabels, trajLabels)
+    def FMI(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.fowlkes_mallows_score(odLabels, trajLabels)
+    def S(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.silhouette_score(X, trajLabels)
+    def CHI(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.calinski_harabasz_score(X, trajLabels)
+    def DBI(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.davies_bouldin_score(X, trajLabels)
+    
+
+
+def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, nClusEnd, clusRange=list(range(2,15)), nIter=3, modelList=None, dataName="inD1", test=True, evalNameList=None, seed=0.860161037286291):
 
     t = Time('start')
     random.seed(seed)
-    # test, nIter, clusRange = False, 10, list(range(2,30))
-    # test, nIter, clusRange = True, 3, list(range(2,15))
     if modelList==None:
         modelList = [
             (sklearn_extra.cluster.KMedoids(metric='precomputed', init='k-medoids++'), 'KMedoids')
@@ -1124,14 +993,32 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
     randArray = np.random.rand(nIter)      ###### distMatrices refTrajIndices, odTrajLabels
     tempDistMatrices = distMatrices
     if test:
-        tempDistMatrices = [(distMatrix, f) for (distMatrix, f) in distMatrices if f in ["gulcssMatrixNorm"+dataName+"_e07.csv", "gudtwMatrixNorm"+dataName+".csv", "gupfMatrix"+dataName+"_r0.2.csv"]]
+        tempDistMatrices = [(distMatrix, distName) for (distMatrix, distName) in distMatrices if distName in ["gulcssMatrixNorm"+dataName+"_e07.csv", "gudtwMatrixNorm"+dataName+".csv", "gupfMatrix"+dataName+"_r0.2.csv"]]
 
-    ARIs = np.zeros((len(tempDistMatrices), len(modelList), len(clusRange), len(randArray)))
-    avgSs = np.zeros((len(tempDistMatrices), len(modelList), len(clusRange), len(randArray)))
-    posSRatios = np.zeros((len(tempDistMatrices), len(modelList), len(clusRange), len(randArray)))
+    initEvalMatrix = np.zeros((len(tempDistMatrices), len(modelList), len(clusRange), len(randArray)))
+    # print(initEvalMatrix)
 
-    for idxMatrix, (distMatrix, f) in enumerate(tempDistMatrices):
-        t = Time(f, color='yellow')
+    evalFuncs = EvalFuncs()
+
+    if evalNameList==None:
+        evalNameList = [methodName for (methodName, method) in inspect.getmembers(evalFuncs, predicate=inspect.ismethod)]
+
+    evalMeasures = []
+    for evalName in evalNameList:
+        matched=False
+        for (methodName, method) in inspect.getmembers(evalFuncs, predicate=inspect.ismethod):
+            if methodName == evalName:
+                evalMeasures.append((initEvalMatrix.copy(), method, methodName))
+                matched=True
+                break
+            # else:
+            #     raise ValueError(f'{evalName} is not a valid name for an evaluation measure! It was skipped.')
+                # cprint('{} is not a valid name for an evaluation measure! It was skipped.'.format(evalName), color='red', on_color='on_grey')
+        if not matched:
+            raise ValueError(f'{evalName} is not a valid name for an evaluation measure! It was skipped.')
+
+    for idxMatrix, (distMatrix, distName) in enumerate(tempDistMatrices):
+        t = Time(distName, color='yellow')
 
         for idxSeed, seed in enumerate(randArray):
             random.seed(a=seed)
@@ -1158,24 +1045,27 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
                 for j in range(shufDistMatrix.shape[1]):
                     shufDistMatrix[i,j] = distMatrix[shufTrajIndices[i], shufTrajIndices[j]]
 
-
-            # ARIs = []
-            # avgSs = []
-            # posSRatios = []
-            for idxModel, (model, title) in enumerate(modelList):
+            for idxModel, (model, modelName) in enumerate(modelList):
                 for idxClus, nClus in enumerate(clusRange):
                     # model1 = model.copy()
+                    if modelName=='DBSCAN':
+                        if 'dtw' in distName:
+                            model.eps = 3
+                        elif 'lcss' in distName:
+                            model.eps = 0.2
+                        elif 'pf' in distName:
+                            model.eps = 3
+                        else:
+                            cprint('Epsilon value not specified yet for {} algorithm in the code. default value 0.5 is used.'.format(distName), color=red, on_color='on_yellow')
                     model.n_clusters = nClus
-                    # model = sklearn.cluster.AgglomerativeClustering(affinity='precomputed', n_clusters=nClus, linkage='complete')
                     S, closestCluster, labels, subDistMatrix, shufSubDistMatrix = Silhouette(model=model, distMatrix=shufDistMatrix, trajIndices=shufRefTrajIndices)
-                    # trajLabels = model.labels_
                     trajLabels = labels
-                    ari = round(sklearn.metrics.adjusted_rand_score(shufOdTrajLabels[shufRefTrajIndices], trajLabels), 3)
-                    # ari = round(sklearn.metrics.adjusted_rand_score(shufOdTrajLabels, trajLabels), 3)
-                    ARIs[idxMatrix, idxModel, idxClus, idxSeed] = ari
-                    avgSs[idxMatrix, idxModel, idxClus, idxSeed] = np.mean(S)
-                    posSIndices = np.where(S>0)[0]
-                    posSRatios[idxMatrix, idxModel, idxClus, idxSeed] = len(posSIndices)/len(S)
+                    for idxEval, (_, evalFunc, evalName) in enumerate(evalMeasures):
+                        evalMeasures[idxEval][0][idxMatrix, idxModel, idxClus, idxSeed] = evalFunc(subDistMatrix, shufOdTrajLabels[shufRefTrajIndices], trajLabels, S)
+                    # avgS[idxMatrix, idxModel, idxClus, idxSeed] = np.mean(S)
+                    # posSIndices = np.where(S>0)[0]
+                    # posSRatio[idxMatrix, idxModel, idxClus, idxSeed] = len(posSIndices)/len(S)
+                    # ARI[idxMatrix, idxModel, idxClus, idxSeed] = round(sklearn.metrics.adjusted_rand_score(shufOdTrajLabels[shufRefTrajIndices], trajLabels), 3)
                 # t = Time('{} model is done'.format(title))
             t = Time('idxSeed {} is done'.format(idxSeed))
 
@@ -1185,48 +1075,64 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
         pass
 
     if not test:
-        pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_ARIs.pickle", "wb")
-        pickle.dump(ARIs, pickle_out)
-        pickle_out.close()
-        pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_avgSs.pickle", "wb")
-        pickle.dump(avgSs, pickle_out)
-        pickle_out.close()
-        pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_posSRatios.pickle", "wb")
-        pickle.dump(posSRatios, pickle_out)
-        pickle_out.close()
+        for (evalMatrix, evalFunc, evalName) in evalMeasures:
+            pickle_out = open(f'./data/{dataName}_output/{dataName}_O{str(nClusStart)}-D{str(nClusEnd)}_{evalName}.pickle', "wb")
+            pickle.dump(evalMatrix, pickle_out)
+            pickle_out.close()            
+        # pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_ARI.pickle", "wb")
+        # pickle.dump(ARI, pickle_out)
+        # pickle_out.close()
+        # pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_avgS.pickle", "wb")
+        # pickle.dump(avgS, pickle_out)
+        # pickle_out.close()
+        # pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_posSRatio.pickle", "wb")
+        # pickle.dump(posSRatio, pickle_out)
+        # pickle_out.close()
 
-    for idxMatrix, (distMatrix, f) in enumerate(tempDistMatrices):
-        cprint(f, color='green', on_color='on_grey')
-        plt.figure(figsize=(24,6))
-        fig = plt.subplot(1,3,1)
-        for i in range(len(modelList)):
-            fig.plot(clusRange, np.nanmean(ARIs[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-            fig.fill_between(clusRange, np.nanmean(ARIs[idxMatrix, i], axis=-1)-np.nanstd(ARIs[idxMatrix, i], axis=-1), np.nanmean(ARIs[idxMatrix, i], axis=-1)+np.nanstd(ARIs[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
-        fig.set_ylim(0,1)
-        fig.set_xlim(0,max(clusRange))
-        fig.legend(loc='lower left')
-        fig.set_title("ARI")
+    cprint('\n "tableResults.csv" not saved. Save it manually.\n', color='red', on_color='on_yellow')
+    tableResults = []
+        # tableResults=[['dataName', 'dist', 'distParam', 'algo', 'algoParam', 'nClus', 'iter', 'ARI', 'avgS', 'posSRatio']]
+        # for idxDist, (s, alpha) in enumerate([('dtw', -1), ('lcss', 1), ('lcss', 2), ('lcss', 3), ('lcss', 5), ('lcss', 7), ('lcss', 10), ('pf', 0.1), ('pf', 0.2), ('pf', 0.3), ('pf', 0.4)]):
+        #     for idxModel, (A, beta) in enumerate([('kmedoids', 'None'), ('kmeans', 'None'), ('agglo', 'complete'), ('agglo', 'average'), ('agglo', 'single'), ('spectral', 'None'), ('OPTICS', 'None'), ('DBSCAN', 'None')]):
+        #         for idxK, k in enumerate(list(range(2,7))):
+        #             for iter in (range(3)):
+        #                 tableResults.append([dataName, s, alpha, A, beta, k, iter, ARI[idxDist][idxModel][idxK][iter], avgS[idxDist][idxModel][idxK][iter], posSRatio[idxDist][idxModel][idxK][iter]])
+        # savetxt('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+'_tableResults.csv', X=tableResults, delimiter=',', fmt ='% s')
 
-        fig = plt.subplot(1,3,2)
-        for i in range(len(modelList)):
-            fig.plot(clusRange, np.nanmean(avgSs[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-            fig.fill_between(clusRange, np.nanmean(avgSs[idxMatrix, i], axis=-1)-np.nanstd(avgSs[idxMatrix, i], axis=-1), np.nanmean(avgSs[idxMatrix, i], axis=-1)+np.nanstd(avgSs[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
-        fig.set_ylim(-1,1)
-        fig.set_xlim(0,max(clusRange))
-        fig.legend(loc='lower left')
-        fig.set_title("average silhouette values")
+    for idxMatrix, (distMatrix, distName) in enumerate(tempDistMatrices):
+        cprint(distName, color='green', on_color='on_grey')
+        plt.figure(figsize=(24,13))
+        for idxEval, (evalMatrix, evalFunc, evalName) in enumerate(evalMeasures):
+            fig = plt.subplot(len(evalMeasures)//4+1,4,idxEval+1)
+            for i in range(len(modelList)):
+                fig.plot(clusRange, np.nanmean(evalMatrix[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
+                fig.fill_between(clusRange, np.nanmean(evalMatrix[idxMatrix, i], axis=-1)-np.nanstd(evalMatrix[idxMatrix, i], axis=-1), np.nanmean(evalMatrix[idxMatrix, i], axis=-1)+np.nanstd(evalMatrix[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
+            # fig.set_ylim(0,1)
+            fig.set_xlim(0,max(clusRange))
+            fig.legend(loc='lower left')
+            fig.set_title(evalName)
 
-        fig = plt.subplot(1,3,3)
-        for i in range(len(modelList)):
-            fig.plot(clusRange, np.nanmean(posSRatios[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-            fig.fill_between(clusRange, np.nanmean(posSRatios[idxMatrix, i], axis=-1)-np.nanstd(posSRatios[idxMatrix, i], axis=-1), np.nanmean(posSRatios[idxMatrix, i], axis=-1)+np.nanstd(posSRatios[idxMatrix, i], axis=-1), alpha=0.3, color=colormap[i])#, label=modelList[i][1])
-        fig.set_ylim(0,1)
-        fig.set_xlim(0,max(clusRange))
-        fig.legend(loc='lower left')
-        fig.set_title("positive sil. value ratio")
-        # plt.title(f, color='w')
-        plt.savefig('./data/'+dataName+"_output/"+dataName+'_'+f[:-4]+"_graphs.pdf", dpi=300)
+        # fig = plt.subplot(1,3,2)
+        # for i in range(len(modelList)):
+        #     fig.plot(clusRange, np.nanmean(avgS[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
+        #     fig.fill_between(clusRange, np.nanmean(avgS[idxMatrix, i], axis=-1)-np.nanstd(avgS[idxMatrix, i], axis=-1), np.nanmean(avgS[idxMatrix, i], axis=-1)+np.nanstd(avgS[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
+        # fig.set_ylim(-1,1)
+        # fig.set_xlim(0,max(clusRange))
+        # fig.legend(loc='lower left')
+        # fig.set_title("average silhouette values")
+
+        # fig = plt.subplot(1,3,3)
+        # for i in range(len(modelList)):
+        #     fig.plot(clusRange, np.nanmean(posSRatio[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
+        #     fig.fill_between(clusRange, np.nanmean(posSRatio[idxMatrix, i], axis=-1)-np.nanstd(posSRatio[idxMatrix, i], axis=-1), np.nanmean(posSRatio[idxMatrix, i], axis=-1)+np.nanstd(posSRatio[idxMatrix, i], axis=-1), alpha=0.3, color=colormap[i])#, label=modelList[i][1])
+        # fig.set_ylim(0,1)
+        # fig.set_xlim(0,max(clusRange))
+        # fig.legend(loc='lower left')
+        # fig.set_title("positive sil. value ratio")
+
+        # plt.title(distName, color='w')
+        plt.savefig('./data/'+dataName+"_output/"+dataName+'_'+distName[:-4]+"_graphs.pdf", dpi=300)
 
         plt.show()
     
-    return ARIs, avgSs, posSRatios
+    return evalMeasures, tableResults
