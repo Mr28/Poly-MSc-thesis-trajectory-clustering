@@ -29,6 +29,9 @@ shCommand("pip install dtw-python")
 shCommand("pip install scikit-learn-extra")
 import sklearn_extra
 import sklearn_extra.cluster
+shCommand("pip install traj-dist")
+import traj_dist, traj_dist.distance
+# import traj_dist.distance as tdist
 
 
 def Time(text="time", prnt=True, color='green', on_color='on_grey'):
@@ -345,7 +348,87 @@ def GuPf(X, Y, L, delta, pf):
     pf[0] = pf[0]/m
 
 
-def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1", similarityMeasure=['lcss', 'dtw', 'pf'], pickleInDistMatrix=False, test=True, lcssParamList=[1, 2, 3, 5, 7, 10], pfParamList=[0.1, 0.2, 0.3, 0.4], maxTrajLength=1800):
+class DistFuncs():
+    # def __init__(self, maxTrajLength = 1800):
+    #     self.maxTrajLength = maxTrajLength
+        # self.zeroMatrix = np.zeros((self.maxTrajLength+1, self.maxTrajLength+1))
+        # self.infMatrix = np.full((self.maxTrajLength+1, self.maxTrajLength+1), np.inf)
+
+    @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+        , nopython=True, target='parallel')
+    def GuLcss(X, Y, L, param, lcs):
+        m = X.shape[0]
+        n = Y.shape[0]
+        for i in range(1, m+1):
+            for j in range(1, n+1):
+                if (X[i-1,0]-Y[j-1,0])**2+(X[i-1,1]-Y[j-1,1])**2<param[0]**2:
+                    L[i][j] = L[i-1][j-1]+1
+                else: 
+                    L[i][j] = max(L[i-1][j], L[i][j-1])
+        lcs[0] = 1-((L[m][n])/min(m,n))
+
+    @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+        , nopython=True, target='parallel')
+    def GuDtw(X, Y, L, param, dtw):
+        m = X.shape[0] 
+        n = Y.shape[0]
+        # L = np.full((m+1, n+1), np.inf)
+        L[0,0] = 0
+        for i in range(1, m+1): 
+            for j in range(1, n+1):
+                L[i,j] = ((X[i-1,0]-Y[j-1,0])**2+(X[i-1,1]-Y[j-1,1])**2)**0.5 + min(L[i-1,j-1], L[i-1,j], L[i,j-1])
+        # return L[m,n]
+        dtw[0] = L[m,n]#/min(m, n)
+
+    @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+        , nopython=True, target='parallel')
+    def GuPf(X, Y, L, param, pf):
+        m = X.shape[0] 
+        n = Y.shape[0]
+        # print('m,n=',m,n)
+        L[0,0] = 0
+        pf[0] = 0
+        for i in range(0, m+0):
+            winFloor = int((1-0.5*param[0])*i//1)
+            winCeil = int((1+0.5*param[0])*i//1+1)
+            n = int(n)
+            for j in range(min(max(0,winFloor), n), min(winCeil,n)):
+                L[i,j] = ((X[i,0]-Y[j,0])**2+(X[i,1]-Y[j,1])**2)**0.5
+            if min(winFloor, n)!=min(winCeil,n):
+                pf[0] += min(L[i, min(winFloor, n):min(winCeil,n) ])
+        pf[0] = pf[0]#/min(m, n)
+
+    def Lcss(self, X, Y, L, param):
+        return traj_dist.distance.c_e_lcss(X,Y, param)
+
+    def Dtw(self, X, Y, L, param):
+        return traj_dist.distance.c_e_dtw(X,Y)
+
+    def Hausdorf(self, X, Y, L, param):
+        return traj_dist.distance.c_e_hausdorff(X,Y)
+
+    def Frechet(self, X, Y, L, param):
+        return traj_dist.distance.c_frechet(X,Y)
+
+    # def Sowd_grid(self, X, Y, L, param):
+    #     return traj_dist.distance.c_sowd_grid(X,Y)
+
+    # def Erp(self, X, Y, L, param):
+    #     return traj_dist.distance.c_e_erp(X,Y, )
+
+    def Edr(self, X, Y, L, param):
+        return traj_dist.distance.c_e_edr(X,Y, param)
+
+    def Sspd(self, X, Y, L, param):
+        return traj_dist.distance.c_e_sspd(X,Y)
+
+
+def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1",pickleInDistMatrix=False, test=True, maxTrajLength=1800,
+                        similarityMeasure=[['GuLcss',[1, 2, 3, 5, 7, 10]], ['GuDtw',[-1]], ['GuPf',[0.01, 0.05, 0.1, 0.2, 0.3, 0.5]],
+                                           ['Lcss',[1, 2, 3, 5, 7, 10]], ['Dtw', [-1]], ['Hausdorf', [-1]], ['Edr', [1, 2, 3, 5, 7, 10]], ['Sspd', [-1]]
+                                           , ['Frechet', [-1]]
+                                           ],
+                        lcssParamList=[1, 2, 3, 5, 7, 10], pfParamList=[0.1, 0.2, 0.3, 0.4]):
 
     try:
         os.mkdir("./data")
@@ -365,134 +448,50 @@ def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1", sim
         shCommand("rm -d -r ./data/distMatricesFolder")
         shCommand("mkdir ./data/distMatricesFolder")
         distMatrices = []
-        L = np.zeros((maxTrajLength+1,maxTrajLength+1)) ######################
+        LZero = np.zeros((maxTrajLength+1,maxTrajLength+1)) ######################
+        LInf = np.full((maxTrajLength+1,maxTrajLength+1), 1e6)
+        distFuncs = DistFuncs()
+        # testTraj0 = np.array([[0,0],[0,1]], dtype=float)
+        # testTraj1 = np.array([[0.75,0],[0.5,1],[1,1.5],[0.75,2.5]], dtype=float)
 
-        if 'lcss' in similarityMeasure:
-            for e in lcssParamList:
-                lcssMatrix = np.zeros((nTraj,nTraj))
-                # startTime = Time(prnt=False)
-                # for i in range(nTraj):
-                #     # t = Time('trajectory {}'.format(i))
-                #     for j in range(i+1):
-                #         X = trajectories[i]
-                #         Y = trajectories[j]
-                #         M = spatial.distance.cdist(X, Y, metric='euclidean')
-                #         # L = np.zeros((X.shape[0]+1, Y.shape[0]+1))
-                #         lcssMatrix[i,j] = Lcs(X, Y, M, L, e)
-                #         lcssMatrix[j,i] = lcssMatrix[i,j]
-                # endTime = Time(prnt=False)
-                # print('LCSS, run time: '+str(endTime-startTime))
-                # # print(lcssMatrix)
-                # ### pickle
-                # pickle_out = open("./data/lcssMatrix_e"+str(e)+".pickle", "wb")
-                # pickle.dump(lcssMatrix, pickle_out)
-                # pickle_out.close()
-
-                startTime = Time(prnt=False)
-                for i in range(nTraj):
-                    for j in range(i+1):
-                        X = trajectories[i]
-                        Y = trajectories[j]
-                        # M = spatial.distance.cdist(X, Y, metric='euclidean')
-                        L = np.zeros((X.shape[0]+1, Y.shape[0]+1))
-                        lcssMatrix[i,j] = GuLcs(X, Y, L, e)
-                        lcssMatrix[j,i] = lcssMatrix[i,j]
-                normLcssMatrix = np.zeros(lcssMatrix.shape)
-                for i in range(lcssMatrix.shape[0]):
-                    for j in range(lcssMatrix.shape[1]):
-                        normLcssMatrix[i,j] = 1 - lcssMatrix[i,j]/(min(len(trajectories[i]),len(trajectories[j])))
-                distMatrix = normLcssMatrix
-                endTime = Time(prnt=False)
-                print('guvec LCSS e{}, run time:{}'.format(e, str(endTime-startTime)))
-                # print(lcssMatrix)
-                ## pickle
-                # pickle_out = open("./data/gulcssMatrix_e{}.pickle".format(e), "wb")
-                # pickle.dump(lcssMatrix, pickle_out)
-                # pickle_out.close()
-                savetxt("./data/distMatricesFolder/gulcssMatrixNorm{:s}_e{:02d}.csv".format(dataName, e), normLcssMatrix, delimiter=',')
-
-        if 'dtw' in similarityMeasure:
-            dtwMatrix = np.zeros((nTraj,nTraj))
-            # startTime = Time(prnt=False)
-            # for i in range(nTraj):
-            #     # t = Time('trajectory {}'.format(i))
-            #     for j in range(i+1):
-            #         X = trajectories[i]
-            #         Y = trajectories[j]
-            #         M = spatial.distance.cdist(X, Y, metric='euclidean')
-            #         L = np.full((X.shape[0]+1, Y.shape[0]+1), np.inf)
-            #         dtwMatrix[i,j] = Dtw(X, Y, M, L)
-            #         dtwMatrix[j,i] = dtwMatrix[i,j]
-            # endTime = Time(prnt=False)
-            # print('DTW, run time: '+str(endTime-startTime))
-            # # print(dtwMatrix)
-            # ### pickle
-            # pickle_out = open("./data/dtwMatrix.pickle", "wb")
-            # pickle.dump(dtwMatrix, pickle_out)
-            # pickle_out.close()
-
-            # startTime = Time('start geuvec-DTW Matrix calculation')
-            for i in range(nTraj):
-                for j in range(i+1):
-                    X = trajectories[i]
-                    Y = trajectories[j]
-                    # M = spatial.distance.cdist(X, Y, metric='euclidean')
-                    L = np.full((X.shape[0]+1, Y.shape[0]+1), np.inf)
-                    dtwMatrix[i,j] = GuDtw(X, Y, L)
-                    dtwMatrix[j,i] = dtwMatrix[i,j]
-            normDtwMatrix = np.zeros(dtwMatrix.shape)
-            for i in range(dtwMatrix.shape[0]):
-                for j in range(dtwMatrix.shape[1]):
-                    normDtwMatrix[i,j] = dtwMatrix[i,j]/(min(len(trajectories[i]),len(trajectories[j])))
-            distMatrix = normDtwMatrix
-            endTime = Time(prnt=False)
-            print('guvec DTW, run time:{}'.format(str(endTime-startTime)))
-            # print(dtwMatrix)
-            ### pickle
-            # pickle_out = open("./data/guDtwMatrix.pickle", "wb")
-            # pickle.dump(dtwMatrix, pickle_out)
-            # pickle_out.close()
-            savetxt("./data/distMatricesFolder/gudtwMatrixNorm{}.csv".format(dataName), normDtwMatrix, delimiter=',')
-
-        if 'pf' in similarityMeasure:
-            for r in pfParamList:
-                pfMatrix = np.zeros((nTraj,nTraj))
-                # startTime = Time('start geuvec-PF Matrix calculation')
-                for i in range(nTraj):
-                    # print(i)
-                    for j in range(nTraj):
-                        # print(j)
-                        X = trajectories[i]
-                        Y = trajectories[j]
-                        # M = spatial.distance.cdist(X, Y, metric='euclidean')
-                        L = np.full((X.shape[0]+1, Y.shape[0]+1), np.inf)
-                        # print(X.shape)
-                        # print(Y.shape)
-                        # print(L.shape)
-                        # print(r)
-                        pfMatrix[i,j] = GuPf(X, Y, L, r)
-                        # dtwMatrix[j,i] = dtwMatrix[i,j]
-                endTime = Time(prnt=False)
-                print('guvec PF r{}, run time:{}'.format(r, str(endTime-startTime)))
-                # print(dtwMatrix)
-                ### pickle
-                # pickle_out = open("./data/guPfMatrix.pickle", "wb")
-                # pickle.dump(pfMatrix, pickle_out)
-                # pickle_out.close()
-                savetxt("./data/distMatricesFolder/gupfMatrix{}_r{}.csv".format(dataName, r), pfMatrix, delimiter=',')
+        for (methodName, method) in inspect.getmembers(distFuncs):
+            # try:
+            #     method(testTraj0, testTraj1, L, 0.5)+0
+            for [distName, paramValueList] in similarityMeasure:
+                if methodName == distName:
+                    if distName in ['Dtw', 'GuDtw', 'GuPf']:
+                        LMatrix = LInf.copy()
+                    else:
+                        LMatrix = LZero.copy()
+                    for paramValue in paramValueList:
+                        distMatrix = np.zeros((nTraj,nTraj))
+                        startTime = Time(prnt=False)
+                        for i in range(nTraj):
+                            for j in range(i+1):
+                                tr1 = trajectories[i]
+                                tr2 = trajectories[j]
+                                distMatrix[i,j] = method(tr1, tr2, LMatrix, paramValue)
+                                distMatrix[j,i] = distMatrix[i,j]
+                                # if 'GuLcss' in distName:
+                                #     print(method(tr1, tr2, LMatrix, paramValue), distName, tr1.shape, tr2.shape, paramValue, '\n', LMatrix[:3, :3])
+                        endTime = Time(prnt=False)
+                        print(f'{distName}, paramValue={paramValue}, runtime:{str(endTime-startTime)}')
+                        # print(lcssMatrix)
+                        ## pickle
+                        # pickle_out = open("./data/gulcssMatrix_e{}.pickle".format(e), "wb")
+                        # pickle.dump(lcssMatrix, pickle_out)
+                        # pickle_out.close()
+                        savetxt(f"./data/distMatricesFolder/{dataName}_{distName}Matrix_param{paramValue}.csv", distMatrix, delimiter=',')
+                        distMatrices.append((distMatrix, f"{dataName}_{distName}Matrix_param{paramValue}"))
+            # except:
+            #     # cprint("failed to produce {:s}_{:s}Matrix_param{:02d}".format(dataName, distName, paramValue), color='red', on_color='on_grey')
+            #     pass
 
     shCommand("rm ./data/distMatricesZip.zip")
     shCommand("zip -o -r ./data/distMatricesZip ./data/distMatricesFolder/")
 
-    files = (f for f in os.listdir("./data/distMatricesFolder/") if "Matrix" in f and '.csv' in f)
-    files = sorted(files)
-
-    distMatrices = []
-    for f in files:
-        for measure in similarityMeasure:
-            if measure in f:
-                distMatrix = loadtxt("./data/distMatricesFolder/"+f, delimiter=',')
-                distMatrices.append((distMatrix, f))
+    # files = (f for f in os.listdir("./data/distMatricesFolder/") if "Matrix" in f and '.csv' in f)
+    # files = sorted(files)
 
     if not test:
         pickle_out = open('./data/'+dataName+"_output/"+dataName+'distMatrices.pickle', "wb")
@@ -993,7 +992,7 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
     randArray = np.random.rand(nIter)      ###### distMatrices refTrajIndices, odTrajLabels
     tempDistMatrices = distMatrices
     if test:
-        tempDistMatrices = [(distMatrix, distName) for (distMatrix, distName) in distMatrices if distName in ["gulcssMatrixNorm"+dataName+"_e07.csv", "gudtwMatrixNorm"+dataName+".csv", "gupfMatrix"+dataName+"_r0.2.csv"]]
+        tempDistMatrices = [(distMatrix, distName) for (distMatrix, distName) in distMatrices if distName in [dataName+"_GuLcssMatrix_param7", dataName+"_GuDtwMatrix_param-1", dataName+"_GuPfMatrix_param0.2"]]
 
     initEvalMatrix = np.zeros((len(tempDistMatrices), len(modelList), len(clusRange), len(randArray)))
     # print(initEvalMatrix)
@@ -1056,12 +1055,15 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
                         elif 'pf' in distName:
                             model.eps = 3
                         else:
-                            cprint('Epsilon value not specified yet for {} algorithm in the code. default value 0.5 is used.'.format(distName), color=red, on_color='on_yellow')
+                            cprint('Epsilon value not specified yet for {} algorithm in the code. default value 0.5 is used.'.format(distName), color='red', on_color='on_yellow')
                     model.n_clusters = nClus
                     S, closestCluster, labels, subDistMatrix, shufSubDistMatrix = Silhouette(model=model, distMatrix=shufDistMatrix, trajIndices=shufRefTrajIndices)
                     trajLabels = labels
                     for idxEval, (_, evalFunc, evalName) in enumerate(evalMeasures):
-                        evalMeasures[idxEval][0][idxMatrix, idxModel, idxClus, idxSeed] = evalFunc(subDistMatrix, shufOdTrajLabels[shufRefTrajIndices], trajLabels, S)
+                        try:
+                            evalMeasures[idxEval][0][idxMatrix, idxModel, idxClus, idxSeed] = evalFunc(subDistMatrix, shufOdTrajLabels[shufRefTrajIndices], trajLabels, S)
+                        except:
+                            cprint(f'Evaluation metric {evalName} failed to work', color='red', on_color='on_grey')
                     # avgS[idxMatrix, idxModel, idxClus, idxSeed] = np.mean(S)
                     # posSIndices = np.where(S>0)[0]
                     # posSRatio[idxMatrix, idxModel, idxClus, idxSeed] = len(posSIndices)/len(S)
