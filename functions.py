@@ -23,13 +23,24 @@ def shCommand(text):
     cmd = shlex.split(text)
     subprocess.run(cmd)
 
+try:
+    shCommand("pip install dtw-python")
+except:
+    shCommand("pip3 install dtw-python")
 
-shCommand("pip install dtw-python")
 # from dtw import *
-shCommand("pip install scikit-learn-extra")
+try:
+    shCommand("pip install scikit-learn-extra")
+except:
+    shCommand("pip3 install scikit-learn-extra")
+
 import sklearn_extra
 import sklearn_extra.cluster
-shCommand("pip install traj-dist")
+try:
+    shCommand("pip install traj-dist")
+except:
+    shCommand("pip3 install traj-dist")
+
 import traj_dist, traj_dist.distance
 # import traj_dist.distance as tdist
 
@@ -235,18 +246,23 @@ def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False
         pickle_out.close()
 
     nTraj = len(trajectories)
+    try:
+        os.mkdir("./data/"+dataName+"_output")
+    except:
+        pass
     if not test:
-        try:
-            os.mkdir("./data/"+dataName+"_output")
-        except:
-            pass
         savetxt('./data/'+dataName+"_output/"+dataName+"_trajList.CSV", trajList, delimiter=',')
     
     if plot:
         for tr in trajectories:
             # print(tr.shape)
+            plt.scatter(tr[0,0], tr[0,1], c='blue', s=2, marker='o')
             plt.plot(tr[:,0], tr[:,1], color='blue', linewidth=0.15)
-        plt.show()
+        plt.savefig('./data/'+dataName+"_output/"+dataName+"_trajectories.pdf", dpi=300)
+        try:
+            plt.show()
+        except:
+            pass
 
     return trajList, trajectories, nTraj
 
@@ -434,7 +450,10 @@ def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1",pick
         os.mkdir("./data")
     except:
         pass
-    # !mkdir ./data
+    try:
+        os.mkdir("./data/"+dataName+"_output")
+    except:
+        pass
 
     if nTraj==None:
         nTraj = len(trajectories)
@@ -467,11 +486,12 @@ def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1",pick
                         distMatrix = np.zeros((nTraj,nTraj))
                         startTime = Time(prnt=False)
                         for i in range(nTraj):
-                            for j in range(i+1):
+                            # for j in range(i+1):
+                            for j in range(nTraj):
                                 tr1 = trajectories[i]
                                 tr2 = trajectories[j]
                                 distMatrix[i,j] = method(tr1, tr2, LMatrix, paramValue)
-                                distMatrix[j,i] = distMatrix[i,j]
+                                # distMatrix[j,i] = distMatrix[i,j]
                                 # if 'GuLcss' in distName:
                                 #     print(method(tr1, tr2, LMatrix, paramValue), distName, tr1.shape, tr2.shape, paramValue, '\n', LMatrix[:3, :3])
                         endTime = Time(prnt=False)
@@ -598,7 +618,11 @@ def Plot(model, distMatrix, trajIndices=None, S=np.array([]), closestCluster=np.
         plt.tick_params(colors=tickColors)
         if title != None:
             plt.title(label=title, color=tickColors)
-        plt.show()
+        plt.savefig('./data/'+dataName+"_output/"+dataName+"_trajsTogether_nClus"+str(nClus)+".pdf", dpi=300)
+        try:
+            plt.show()
+        except:
+            pass
 
     if plotTrajsSeperate:
         nRows = -(-nClus//4)
@@ -615,7 +639,11 @@ def Plot(model, distMatrix, trajIndices=None, S=np.array([]), closestCluster=np.
             fig.tick_params(colors=tickColors)
         if title != None:
             plt.suptitle(title, color=tickColors)
-        plt.show()
+        plt.savefig('./data/'+dataName+"_output/"+dataName+"_trajsSeparate_nClus"+str(nClus)+".pdf", dpi=300)
+        try:
+            plt.show()
+        except:
+            pass
 
     if plotSilhouette and S!=np.array([]):# and closestCluster!=np.array([]):
         cmap = list(colors.TABLEAU_COLORS)
@@ -635,7 +663,11 @@ def Plot(model, distMatrix, trajIndices=None, S=np.array([]), closestCluster=np.
             fig.tick_params(colors=tickColors)
         if title != None:
             plt.suptitle(title, color=tickColors)
-        plt.show()
+        plt.savefig('./data/'+dataName+"_output/"+dataName+"_silhouette_nClus"+str(nClus)+".pdf", dpi=300)
+        try:
+            plt.show()
+        except:
+            pass
 
     if plotSilhouetteTogether:
         sortedS = [i for i in np.argsort(S)[::-1]]
@@ -644,7 +676,11 @@ def Plot(model, distMatrix, trajIndices=None, S=np.array([]), closestCluster=np.
         plt.tick_params(colors=tickColors)
         if title != None:
             plt.title(label=title, color=tickColors)
-        plt.show()
+        plt.savefig('./data/'+dataName+"_output/"+dataName+"_silhouetteTogether_nClus"+str(nClus)+".pdf", dpi=300)
+        try:
+            plt.show()
+        except:
+            pass
 
 
 # def SilhouetteStats(model, distMatrix, S, closestCluster=np.array([])):
@@ -664,7 +700,7 @@ def Plot(model, distMatrix, trajIndices=None, S=np.array([]), closestCluster=np.
 #     #     sClusters.append(clusList)
 
 
-def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], modelNames=['average Agglo-Hierarch'], nIter=1, visualize=False, shuffle=False, test=True, darkTheme=False):
+def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4], nClusDestSet=[4], modelNames=['average Agglo-Hierarch'], nIter=1, visualize=False, shuffle=False, test=True, darkTheme=False, dataName="inD1"):
     if shuffle or len(nClusOriginSet)>1 or len(nClusDestSet)>1:
         cprint('\n The internal set of trejecories and thus the output labels go out of sync with the input "trajectories" set if shuffle==True or len(nClusOriginSet)>1 or len(nClusDestSet)>1.\n', color='red', on_color='on_grey')
 
@@ -772,6 +808,11 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
                         plt.scatter(shufStartPoints[k,0], shufStartPoints[k,1], c=colormap[startLabels[k]])
                     plt.scatter(startCenters[:,0], startCenters[:,1], c='black')
                     plt.tick_params(colors=tickColors)
+                    plt.savefig('./data/'+dataName+"_output/"+dataName+"_startClusters.pdf", dpi=300)
+                    try:
+                        plt.show()
+                    except:
+                        pass
                 
             # t = Time(text=title)
             for i in range(len(nClusDestSet)):
@@ -821,7 +862,11 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
                         plt.scatter(shufEndPoints[k,0], shufEndPoints[k,1], c=colormap[endLabels[k]])
                     plt.scatter(endCenters[:,0], endCenters[:,1], c='black')
                     plt.tick_params(colors=tickColors)
-                    plt.show()
+                    plt.savefig('./data/'+dataName+"_output/"+dataName+"_endClusters.pdf", dpi=300)
+                    try:
+                        plt.show()
+                    except:
+                        pass
 
     meanStartAvgDist = np.mean(startAvgDists, axis=-1)
     stdStartAvgDist = np.std(startAvgDists, axis=-1)#/(nIter**0.5)
@@ -841,13 +886,17 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
         fig.errorbar(x=nClusDestSet, y=np.mean(endAvgDists, axis=-1), yerr=np.std(endAvgDists, axis=-1)/(nIter**0.5), linestyle='None', fmt='-_', color='orange', ecolor='blue')
         fig.tick_params(colors=tickColors)
         fig.set_title("Destination clusters")
-        plt.show()
-
-    if not test:
+        plt.savefig('./data/'+dataName+"_output/"+dataName+"_OD-clusteringPerformance.pdf", dpi=300)
         try:
-            os.mkdir("./data/"+dataName+"_output")
+            plt.show()
         except:
             pass
+
+    try:
+        os.mkdir("./data/"+dataName+"_output")
+    except:
+        pass
+    if not test:
         savetxt('./data/'+dataName+"_startLabels.CSV", startLabels, delimiter=',')
         savetxt('./data/'+dataName+"_endLabels.CSV", endLabels, delimiter=',')
 
@@ -861,7 +910,7 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
     return unShufStartLabels, unShufEndLabels, startPoints, endPoints, nClusStart, nClusEnd#, startAvgDists
 
 
-def OdMajorClusters(trajectories, startLabels=None, endLabels=None, threshold=10, visualize=False, test=True, load=False):
+def OdMajorClusters(trajectories, startLabels=None, endLabels=None, threshold=10, visualize=False, test=True, load=False, dataName="inD1"):
 
     if load:
         try:
@@ -896,6 +945,9 @@ def OdMajorClusters(trajectories, startLabels=None, endLabels=None, threshold=10
                 refTrajIndices.extend(lst)
     refTrajIndices.sort()
 
+    unique, counts = np.unique(odTrajLabels, return_counts=True)
+    print('OD cluster counts:\n', dict(zip(unique, counts)))
+
     # refDistMatrix = np.zeros((len(refTrajIndices), len(refTrajIndices)))
     # for i in range(len(refTrajIndices)):
     #     refDistMatrix[i] = distMatrix[refTrajIndices[i], refTrajIndices]
@@ -904,7 +956,7 @@ def OdMajorClusters(trajectories, startLabels=None, endLabels=None, threshold=10
         ### major OD visulaization
 
         # print(countOD)
-        threshold = 10
+        # threshold = 10
         plt.figure(figsize=(16,6))
         fig = plt.subplot(1,2,1)
         fig.set_title('examples of major ODs', color='w')
@@ -925,13 +977,17 @@ def OdMajorClusters(trajectories, startLabels=None, endLabels=None, threshold=10
                     tr = trajectories[k]
                     fig.plot(tr[:,0], tr[:,1])
                     fig.scatter(tr[0,0], tr[0,1], c=100, s=2, marker='o')
-        plt.show()
-
-    if not test:
+        plt.savefig('./data/'+dataName+"_output/"+dataName+"_OD-sampleTrajectories.pdf", dpi=300)
         try:
-            os.mkdir("./data/"+dataName+"_output")
+            plt.show()
         except:
             pass
+            
+    try:
+        os.mkdir("./data/"+dataName+"_output")
+    except:
+        pass
+    if not test:
         savetxt('./data/'+dataName+"_output/"+dataName+"_refTrajIndices.CSV", refTrajIndices, delimiter=',')
         savetxt('./data/'+dataName+"_output/"+dataName+"_odTrajLabels.CSV", odTrajLabels, delimiter=',')
 
@@ -945,8 +1001,8 @@ class EvalFuncs():
         return len(np.where(S>0)[0])/len(S)
     def ARI(self, X, odLabels, trajLabels, S):
         return sklearn.metrics.adjusted_rand_score(odLabels, trajLabels)
-    def MI(self, X, odLabels, trajLabels, S):
-        return sklearn.metrics.mutual_info_score(odLabels, trajLabels)
+    def AMI(self, X, odLabels, trajLabels, S):
+        return sklearn.metrics.adjusted_mutual_info_score(odLabels, trajLabels)
     def Homogeneity(self, X, odLabels, trajLabels, S):
         return sklearn.metrics.homogeneity_score(odLabels, trajLabels)
     def Completeness(self, X, odLabels, trajLabels, S):
@@ -1023,16 +1079,13 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
             random.seed(a=seed)
             shufTrajectories = trajectories.copy()
             shufTrajIndices = list(range(distMatrix.shape[0]))
-            # random.shuffle(shufTrajIndices)
+            random.shuffle(shufTrajIndices)
 
             shufOdTrajLabels = np.zeros(odTrajLabels.shape)
             shufRefTrajIndices = [0 for _ in refTrajIndices]
             shufDistMatrix = np.zeros(distMatrix.shape)
             for i in range(len(shufTrajectories)):
                 shufTrajectories[i] = trajectories[shufTrajIndices[i]]
-                
-            # startLabels, endLabels, startPoints, endPoints = OdClustering(modelList=None, nClusOriginSet=[11], nClusDestSet=[4], visualize=False, funcTrajectories=shufTrajectories)
-            # refTrajIndices, odTrajLabels = OdMajorClusters(threshold=10)
 
             shufOdTrajLabels = odTrajLabels.copy()
             shufRefTrajIndices = refTrajIndices.copy()
@@ -1048,12 +1101,24 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
                 for idxClus, nClus in enumerate(clusRange):
                     # model1 = model.copy()
                     if modelName=='DBSCAN':
-                        if 'dtw' in distName:
-                            model.eps = 3
-                        elif 'lcss' in distName:
+                        if 'dtw' in distName.lower():
+                            model.eps = 150
+                            model.min_samples = 8
+                        elif 'lcss' in distName.lower():
+                            model.eps = 0.41
+                            model.min_samples = 6
+                        elif 'pf' in distName.lower():
+                            model.eps = 205
+                            model.min_samples = 5
+                        elif 'edr' in distName.lower():
                             model.eps = 0.2
-                        elif 'pf' in distName:
-                            model.eps = 3
+                            model.min_samples = 23
+                        elif 'hausdorf' in distName.lower():
+                            model.eps = 4.7
+                            model.min_samples = 10
+                        elif 'sspd' in distName.lower():
+                            model.eps = 2.0
+                            model.min_samples = 5
                         else:
                             cprint('Epsilon value not specified yet for {} algorithm in the code. default value 0.5 is used.'.format(distName), color='red', on_color='on_yellow')
                     model.n_clusters = nClus
@@ -1063,11 +1128,7 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
                         try:
                             evalMeasures[idxEval][0][idxMatrix, idxModel, idxClus, idxSeed] = evalFunc(subDistMatrix, shufOdTrajLabels[shufRefTrajIndices], trajLabels, S)
                         except:
-                            cprint(f'Evaluation metric {evalName} failed to work', color='red', on_color='on_grey')
-                    # avgS[idxMatrix, idxModel, idxClus, idxSeed] = np.mean(S)
-                    # posSIndices = np.where(S>0)[0]
-                    # posSRatio[idxMatrix, idxModel, idxClus, idxSeed] = len(posSIndices)/len(S)
-                    # ARI[idxMatrix, idxModel, idxClus, idxSeed] = round(sklearn.metrics.adjusted_rand_score(shufOdTrajLabels[shufRefTrajIndices], trajLabels), 3)
+                            cprint(f'Evaluation metric {evalName} failed to work on {modelName} result.', color='red', on_color='on_grey')
                 # t = Time('{} model is done'.format(title))
             t = Time('idxSeed {} is done'.format(idxSeed))
 
@@ -1081,15 +1142,6 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
             pickle_out = open(f'./data/{dataName}_output/{dataName}_O{str(nClusStart)}-D{str(nClusEnd)}_{evalName}.pickle', "wb")
             pickle.dump(evalMatrix, pickle_out)
             pickle_out.close()            
-        # pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_ARI.pickle", "wb")
-        # pickle.dump(ARI, pickle_out)
-        # pickle_out.close()
-        # pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_avgS.pickle", "wb")
-        # pickle.dump(avgS, pickle_out)
-        # pickle_out.close()
-        # pickle_out = open('./data/'+dataName+"_output/"+dataName+"_O"+str(nClusStart)+"-D"+str(nClusEnd)+"_posSRatio.pickle", "wb")
-        # pickle.dump(posSRatio, pickle_out)
-        # pickle_out.close()
 
     cprint('\n "tableResults.csv" not saved. Save it manually.\n', color='red', on_color='on_yellow')
     tableResults = []
@@ -1113,28 +1165,11 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
             fig.set_xlim(0,max(clusRange))
             fig.legend(loc='lower left')
             fig.set_title(evalName)
-
-        # fig = plt.subplot(1,3,2)
-        # for i in range(len(modelList)):
-        #     fig.plot(clusRange, np.nanmean(avgS[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-        #     fig.fill_between(clusRange, np.nanmean(avgS[idxMatrix, i], axis=-1)-np.nanstd(avgS[idxMatrix, i], axis=-1), np.nanmean(avgS[idxMatrix, i], axis=-1)+np.nanstd(avgS[idxMatrix, i], axis=-1), color=colormap[i], alpha=0.3)#, label=modelList[i][1])
-        # fig.set_ylim(-1,1)
-        # fig.set_xlim(0,max(clusRange))
-        # fig.legend(loc='lower left')
-        # fig.set_title("average silhouette values")
-
-        # fig = plt.subplot(1,3,3)
-        # for i in range(len(modelList)):
-        #     fig.plot(clusRange, np.nanmean(posSRatio[idxMatrix, i], axis=-1), color=colormap[i], label=modelList[i][1])
-        #     fig.fill_between(clusRange, np.nanmean(posSRatio[idxMatrix, i], axis=-1)-np.nanstd(posSRatio[idxMatrix, i], axis=-1), np.nanmean(posSRatio[idxMatrix, i], axis=-1)+np.nanstd(posSRatio[idxMatrix, i], axis=-1), alpha=0.3, color=colormap[i])#, label=modelList[i][1])
-        # fig.set_ylim(0,1)
-        # fig.set_xlim(0,max(clusRange))
-        # fig.legend(loc='lower left')
-        # fig.set_title("positive sil. value ratio")
-
         # plt.title(distName, color='w')
-        plt.savefig('./data/'+dataName+"_output/"+dataName+'_'+distName[:-4]+"_graphs.pdf", dpi=300)
-
-        plt.show()
+        plt.savefig('./data/'+dataName+"_output/"+dataName+'_'+distName+"_graphs.pdf", dpi=300)
+        try:
+            plt.show()
+        except:
+            pass
     
     return evalMeasures, tableResults
