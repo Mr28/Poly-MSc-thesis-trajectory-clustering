@@ -198,10 +198,16 @@ def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False
         intYMin, intYMax = 120, 240
     elif dataName == "NGSIM2":
         intId = 2
+        intXMin, intXMax = -50, 30
+        intYMin, intYMax = 650, 760
     elif dataName == "NGSIM3":
         intId = 3
+        intXMin, intXMax = -40, 40
+        intYMin, intYMax = 1160, 1240
     elif dataName == "NGSIM4":
         intId = 4
+        intXMin, intXMax = -40, 40
+        intYMin, intYMax = 1570, 1650
     elif dataName == "NGSIM5":
         intId = 5
         intXMin, intXMax = -40, 40
@@ -267,58 +273,19 @@ def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False
     return trajList, trajectories, nTraj
 
 
-def Lcs(X, Y, M, L, epsilon=1.5): 
-	m = X.shape[0] 
-	n = Y.shape[0]
-	# L = np.zeros((m+1, n+1))
-	for i in range(1,m + 1): 
-		for j in range(1,n + 1):
-			if M[i-1,j-1]<epsilon:
-				L[i,j] = L[i-1,j-1]+1
-			else: 
-				L[i,j] = max(L[i-1,j], L[i,j-1]) 
-	return L[m,n]
+# def Lcs(X, Y, M, L, epsilon=1.5): 
+# 	m = X.shape[0] 
+# 	n = Y.shape[0]
+# 	# L = np.zeros((m+1, n+1))
+# 	for i in range(1,m + 1): 
+# 		for j in range(1,n + 1):
+# 			if M[i-1,j-1]<epsilon:
+# 				L[i,j] = L[i-1,j-1]+1
+# 			else: 
+# 				L[i,j] = max(L[i-1,j], L[i,j-1]) 
+# 	return L[m,n]
 
-def Dtw(X, Y, M, L):
-    m = X.shape[0] 
-    n = Y.shape[0]
-    # L = np.full((m+1, n+1), np.inf)
-    L[0,0] = 0
-    for i in range(1,m + 1): 
-        for j in range(1,n + 1):
-            L[i,j] = M[i-1,j-1] + min(L[i-1,j-1], L[i-1,j], L[i,j-1])
-    return L[m,n]
-
-# @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1Len,traj2Len), (traj1LenPlus1,traj2LenPlus1), () -> ()"
-#     , nopython=True, target='cuda')
-# def GuLcs(X, Y, M, L, epsilon, lcs): 
-#     m = X.shape[0]
-#     n = Y.shape[0]
-#     for i in range(1,m + 1):
-#         for j in range(1,n + 1):
-#             if M[i-1,j-1]<epsilon[0]:
-#                 L[i,j] = L[i-1,j-1]+1
-#             else: 
-#                 L[i,j] = max(L[i-1,j], L[i,j-1])
-#     # return L[m,n]
-#     lcs[0] = L[m,n]
-
-@guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
-    , nopython=True, target='parallel')
-def GuLcs(X, Y, L, epsilon, lcs): 
-    m = X.shape[0]
-    n = Y.shape[0]
-    for i in range(1, m+1):
-        for j in range(1, n+1):
-            if (X[i-1,0]-Y[j-1,0])**2+(X[i-1,1]-Y[j-1,1])**2<epsilon[0]**2:
-                L[i][j] = L[i-1][j-1]+1
-            else: 
-                L[i][j] = max(L[i-1][j], L[i][j-1])
-    lcs[0] = L[m][n]
-
-# @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:,:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1Len,traj2Len), (traj1LenPlus1,traj2LenPlus1) -> ()"
-#     , nopython=True, target='cuda')
-# def GuDtw(X, Y, M, L, dtw):
+# def Dtw(X, Y, M, L):
 #     m = X.shape[0] 
 #     n = Y.shape[0]
 #     # L = np.full((m+1, n+1), np.inf)
@@ -326,42 +293,81 @@ def GuLcs(X, Y, L, epsilon, lcs):
 #     for i in range(1,m + 1): 
 #         for j in range(1,n + 1):
 #             L[i,j] = M[i-1,j-1] + min(L[i-1,j-1], L[i-1,j], L[i,j-1])
+#     return L[m,n]
+
+# # @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1Len,traj2Len), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+# #     , nopython=True, target='cuda')
+# # def GuLcs(X, Y, M, L, epsilon, lcs): 
+# #     m = X.shape[0]
+# #     n = Y.shape[0]
+# #     for i in range(1,m + 1):
+# #         for j in range(1,n + 1):
+# #             if M[i-1,j-1]<epsilon[0]:
+# #                 L[i,j] = L[i-1,j-1]+1
+# #             else: 
+# #                 L[i,j] = max(L[i-1,j], L[i,j-1])
+# #     # return L[m,n]
+# #     lcs[0] = L[m,n]
+
+# @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+#     , nopython=True, target='parallel')
+# def GuLcs(X, Y, L, epsilon, lcs): 
+#     m = X.shape[0]
+#     n = Y.shape[0]
+#     for i in range(1, m+1):
+#         for j in range(1, n+1):
+#             if (X[i-1,0]-Y[j-1,0])**2+(X[i-1,1]-Y[j-1,1])**2<epsilon[0]**2:
+#                 L[i][j] = L[i-1][j-1]+1
+#             else: 
+#                 L[i][j] = max(L[i-1][j], L[i][j-1])
+#     lcs[0] = L[m][n]
+
+# # @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:,:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1Len,traj2Len), (traj1LenPlus1,traj2LenPlus1) -> ()"
+# #     , nopython=True, target='cuda')
+# # def GuDtw(X, Y, M, L, dtw):
+# #     m = X.shape[0] 
+# #     n = Y.shape[0]
+# #     # L = np.full((m+1, n+1), np.inf)
+# #     L[0,0] = 0
+# #     for i in range(1,m + 1): 
+# #         for j in range(1,n + 1):
+# #             L[i,j] = M[i-1,j-1] + min(L[i-1,j-1], L[i-1,j], L[i,j-1])
+# #     # return L[m,n]
+# #     dtw[0] = L[m,n]
+
+# @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1) -> ()"
+#     , nopython=True, target='parallel')
+# def GuDtw(X, Y, L, dtw):
+#     m = X.shape[0] 
+#     n = Y.shape[0]
+#     # L = np.full((m+1, n+1), np.inf)
+#     L[0,0] = 0
+#     for i in range(1, m+1): 
+#         for j in range(1, n+1):
+#             L[i,j] = ((X[i-1,0]-Y[j-1,0])**2+(X[i-1,1]-Y[j-1,1])**2)**0.5 + min(L[i-1,j-1], L[i-1,j], L[i,j-1])
 #     # return L[m,n]
 #     dtw[0] = L[m,n]
 
-@guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1) -> ()"
-    , nopython=True, target='parallel')
-def GuDtw(X, Y, L, dtw):
-    m = X.shape[0] 
-    n = Y.shape[0]
-    # L = np.full((m+1, n+1), np.inf)
-    L[0,0] = 0
-    for i in range(1, m+1): 
-        for j in range(1, n+1):
-            L[i,j] = ((X[i-1,0]-Y[j-1,0])**2+(X[i-1,1]-Y[j-1,1])**2)**0.5 + min(L[i-1,j-1], L[i-1,j], L[i,j-1])
-    # return L[m,n]
-    dtw[0] = L[m,n]
-
-@guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
-    , nopython=True, target='parallel')
-def GuPf(X, Y, L, delta, pf):
-    m = X.shape[0] 
-    n = Y.shape[0]
-    # L = np.full((m+1, n+1), np.inf)
-    L[0,0] = 0
-    pf[0] = 0
-    # print('m,n', m, n)
-    for i in range(0, m+0): 
-        winFloor = int((1-delta[0])*i//1+1)
-        winCeil = int((1+delta[0])*i//1+2)
-        # print('i, f, c',i,  min(winFloor, n), min(winCeil,n))
-        n = int(n)
-        for j in range(min(winFloor, n), min(winCeil,n)):
-            L[i,j] = ((X[i,0]-Y[j,0])**2+(X[i,1]-Y[j,1])**2)**0.5
-        if min(winFloor, n)!=min(winCeil,n):
-            pf[0] += min(L[i, min(winFloor, n):min(winCeil,n) ])
-    # # return L[m,n]
-    pf[0] = pf[0]/m
+# @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+#     , nopython=True, target='parallel')
+# def GuPf(X, Y, L, delta, pf):
+#     m = X.shape[0] 
+#     n = Y.shape[0]
+#     # L = np.full((m+1, n+1), np.inf)
+#     L[0,0] = 0
+#     pf[0] = 0
+#     # print('m,n', m, n)
+#     for i in range(0, m+0): 
+#         winFloor = int((1-delta[0])*i//1+1)
+#         winCeil = int((1+delta[0])*i//1+2)
+#         # print('i, f, c',i,  min(winFloor, n), min(winCeil,n))
+#         n = int(n)
+#         for j in range(min(winFloor, n), min(winCeil,n)):
+#             L[i,j] = ((X[i,0]-Y[j,0])**2+(X[i,1]-Y[j,1])**2)**0.5
+#         if min(winFloor, n)!=min(winCeil,n):
+#             pf[0] += min(L[i, min(winFloor, n):min(winCeil,n) ])
+#     # # return L[m,n]
+#     pf[0] = pf[0]/m
 
 
 class DistFuncs():
@@ -414,6 +420,24 @@ class DistFuncs():
                 pf[0] += min(L[i, min(winFloor, n):min(winCeil,n) ])
         pf[0] = pf[0]#/min(m, n)
 
+    # @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+    #     , nopython=True, target='parallel')
+    # def GuSspd(X, Y, L, param, sspd):
+
+    @guvectorize(["f8[:,:], f8[:,:], f8[:,:], f8[:], f8[:]"],"(traj1Len,dims), (traj2Len,dims), (traj1LenPlus1,traj2LenPlus1), () -> ()"
+        , nopython=True, target='parallel')
+    def GuEdr(X, Y, L, param, edr):
+        m = X.shape[0]
+        n = Y.shape[0]
+        for i in range(1, m+1):
+            for j in range(1, n+1):
+                if (X[i-1,0]-Y[j-1,0])**2+(X[i-1,1]-Y[j-1,1])**2<param[0]**2:
+                    subcost = 0
+                else:
+                    subcost = 1
+                L[i][j] = min(L[i][j-1]+1, L[i-1][j]+1, L[i-1][j-1]+subcost)
+        edr[0] = float(L[m][n]) / max(m,n)
+
     def Lcss(self, X, Y, L, param):
         return traj_dist.distance.c_e_lcss(X,Y, param)
 
@@ -440,9 +464,8 @@ class DistFuncs():
 
 
 def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1",pickleInDistMatrix=False, test=True, maxTrajLength=1800,
-                        similarityMeasure=[['GuLcss',[1, 2, 3, 5, 7, 10]], ['GuDtw',[-1]], ['GuPf',[0.01, 0.05, 0.1, 0.2, 0.3, 0.5]],
-                                           ['Lcss',[1, 2, 3, 5, 7, 10]], ['Dtw', [-1]], ['Hausdorf', [-1]], ['Edr', [1, 2, 3, 5, 7, 10]], ['Sspd', [-1]]
-                                           , ['Frechet', [-1]]
+                        similarityMeasure=[['GuLcss',[1, 2, 3, 5, 7, 10]], ['GuDtw',[-1]], ['GuPf',[0.01, 0.05, 0.1, 0.2, 0.3, 0.5]], ['GuEdr', [1, 2, 3, 5, 7, 10]],
+                                           ['Hausdorf', [-1]], ['Sspd', [-1]], ['Frechet', [-1]]
                                            ],
                         lcssParamList=[1, 2, 3, 5, 7, 10], pfParamList=[0.1, 0.2, 0.3, 0.4]):
 
@@ -517,6 +540,33 @@ def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1",pick
         pickle_out = open('./data/'+dataName+"_output/"+dataName+'distMatrices.pickle', "wb")
         pickle.dump(distMatrices, pickle_out)
         pickle_out.close()
+    
+    corMatrix = np.zeros((len(distMatrices),len(distMatrices)))
+    for idx1, (M1, distMeasure1) in enumerate(distMatrices):
+        for idx2, (M2, distMeasure2) in enumerate(distMatrices):
+            if distMeasure2.split(sep='_')[1].startswith('Gu') and distMeasure1.split(sep='_')[1] == distMeasure2.split(sep='_')[1][2:] and distMeasure1.split(sep='_')[2]==distMeasure2.split(sep='_')[2]:
+                cprint(distMeasure1, color='green')
+                print(np.mean(np.power(np.subtract(M1, M2), 2)))
+            fooCor = np.corrcoef(M1.flatten(), M2.flatten())
+            corMatrix[idx1,idx2] = fooCor[0,1]
+            # corMatrix[idx1,idx2] = np.mean(np.power(np.subtract(M1, M2), 2))
+    plt.imshow(corMatrix)
+    plt.colorbar()
+    labelList = []
+    for (_, distMeasure) in distMatrices:
+        if distMeasure.split(sep='_')[1].startswith('Gu'):
+            part1 = distMeasure.split(sep='_')[1][2:-6]
+        else:
+            part1 = distMeasure.split(sep='_')[1][:-6]
+        if distMeasure.split(sep='_')[2].endswith('-1'):
+            part2 = distMeasure.split(sep='_')[2][5:-2]
+        else:
+            part2 = distMeasure.split(sep='_')[2][5:]
+        labelList.append(part1+' '+part2)
+    plt.xticks(range(len(distMatrices)), labelList, rotation=90)
+    plt.yticks(range(len(distMatrices)), labelList)
+    plt.savefig('./data/'+dataName+"_output/"+dataName+'distMeasureCorrelation.pdf', dpi=300)
+    plt.show()
 
     return distMatrices
 
@@ -539,8 +589,6 @@ def Silhouette(model, distMatrix, trajIndices=None):#, permuting=True):
     shufLabels = model.labels_#[trajIndices]
 
     labels = np.zeros_like(shufLabels)
-    # print(shufIndices)
-    # print(i, np.where(shufIndices==i))
     for i in range(len(shufIndices)):
         labels[np.where(np.array(shufIndices)==i)[0][0]] = shufLabels[i]
     
@@ -729,7 +777,7 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
     if modelList == None:
         modelList = [
                     (sklearn_extra.cluster.KMedoids(metric='euclidean'), 'KMedoids')
-                    ,(sklearn.cluster.KMeans(precompute_distances='auto', n_jobs=-1), 'KMeans')
+                    ,(sklearn.cluster.KMeans(), 'KMeans')#precompute_distances='auto', n_jobs=-1), 'KMeans')
                     ,(sklearn.cluster.AgglomerativeClustering(affinity='euclidean', linkage='ward'), 'ward Agglo-Hierarch')
                     ,(sklearn.cluster.AgglomerativeClustering(affinity='euclidean', linkage='complete'), 'complete Agglo-Hierarch')
                     ,(sklearn.cluster.AgglomerativeClustering(affinity='euclidean', linkage='average'), 'average Agglo-Hierarch')
@@ -1027,7 +1075,7 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
     if modelList==None:
         modelList = [
             (sklearn_extra.cluster.KMedoids(metric='precomputed', init='k-medoids++'), 'KMedoids')
-            ,(sklearn.cluster.KMeans(precompute_distances='auto'), 'KMeans')
+            ,(sklearn.cluster.KMeans(), 'KMeans')#precompute_distances='auto'), 'KMeans')
             # (sklearn.cluster.AgglomerativeClustering(affinity='precomputed', linkage='ward'), 'ward Agglo-Hierarch')
             ,(sklearn.cluster.AgglomerativeClustering(affinity='precomputed', linkage='complete'), 'complete Agglo-Hierarch')
             ,(sklearn.cluster.AgglomerativeClustering(affinity='precomputed', linkage='average'), 'average Agglo-Hierarch')
@@ -1111,8 +1159,8 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
                             model.eps = 205
                             model.min_samples = 5
                         elif 'edr' in distName.lower():
-                            model.eps = 0.2
-                            model.min_samples = 23
+                            model.eps = 0.02
+                            model.min_samples = 2
                         elif 'hausdorf' in distName.lower():
                             model.eps = 4.7
                             model.min_samples = 10
