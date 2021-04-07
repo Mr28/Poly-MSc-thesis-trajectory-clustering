@@ -211,7 +211,7 @@ def DatabaseSection(dataName="inD1", resetDatabase=False, pickleInDatabase=False
     elif dataName == "NGSIM5":
         intId = 5
         intXMin, intXMax = -40, 40
-        intYMin, intYMax = 1980, 2080
+        intYMin, intYMax = 1960, 2080
     else:
         cprint(text="""*\n*\n*\n Incorrect dataName input. It should be either: inD1, inD2, inD3, inD4, NGSIM1 or NGSIM5.\n*\n*\n*"""
             , color='red', on_color='on_grey')
@@ -467,7 +467,8 @@ def DistMatricesSection(trajList, trajectories, nTraj=None, dataName="inD1",pick
                         similarityMeasure=[['GuLcss',[1, 2, 3, 5, 7, 10]], ['GuDtw',[-1]], ['GuPf',[0.01, 0.05, 0.1, 0.2, 0.3, 0.5]], ['GuEdr', [1, 2, 3, 5, 7, 10]],
                                            ['Hausdorf', [-1]], ['Sspd', [-1]], ['Frechet', [-1]]
                                            ],
-                        lcssParamList=[1, 2, 3, 5, 7, 10], pfParamList=[0.1, 0.2, 0.3, 0.4]):
+                        # lcssParamList=[1, 2, 3, 5, 7, 10], pfParamList=[0.1, 0.2, 0.3, 0.4]
+                        ):
 
     try:
         os.mkdir("./data")
@@ -916,29 +917,33 @@ def OdClustering(funcTrajectories, nTraj=None, modelList=None, nClusOriginSet=[4
                     except:
                         pass
 
-    meanStartAvgDist = np.mean(startAvgDists, axis=-1)
-    stdStartAvgDist = np.std(startAvgDists, axis=-1)#/(nIter**0.5)
-    meanEndAvgDist = np.mean(endAvgDists, axis=-1)
-    stdEndAvgDist = np.std(endAvgDists, axis=-1)#/(nIter**0.5)
-    plotMax = max(np.max(meanStartAvgDist+stdStartAvgDist), np.max(meanEndAvgDist+stdEndAvgDist))
+        meanStartAvgDist = np.mean(startAvgDists, axis=-1)
+        stdStartAvgDist = np.std(startAvgDists, axis=-1)#/(nIter**0.5)
+        meanEndAvgDist = np.mean(endAvgDists, axis=-1)
+        stdEndAvgDist = np.std(endAvgDists, axis=-1)#/(nIter**0.5)
+        plotMax = max(np.max(meanStartAvgDist+stdStartAvgDist), np.max(meanEndAvgDist+stdEndAvgDist))
 
-    if len(nClusOriginSet)>1 or len(nClusDestSet)>1:
-        plt.figure(figsize=(16,6))
-        fig = plt.subplot(1,2,1)
-        fig.set_ylim(0,plotMax)
-        fig.errorbar(x=nClusOriginSet, y=meanStartAvgDist, yerr=stdStartAvgDist, linestyle='None', fmt='-_', color='orange', ecolor='blue')
-        fig.tick_params(colors=tickColors)
-        fig.set_title("Origin clusters")
-        fig = plt.subplot(1,2,2)
-        fig.set_ylim(0,plotMax)
-        fig.errorbar(x=nClusDestSet, y=np.mean(endAvgDists, axis=-1), yerr=np.std(endAvgDists, axis=-1)/(nIter**0.5), linestyle='None', fmt='-_', color='orange', ecolor='blue')
-        fig.tick_params(colors=tickColors)
-        fig.set_title("Destination clusters")
-        plt.savefig('./data/'+dataName+"_output/"+dataName+"_OD-clusteringPerformance.pdf", dpi=300)
-        try:
-            plt.show()
-        except:
-            pass
+        if len(nClusOriginSet)>1 or len(nClusDestSet)>1:
+            plt.figure(figsize=(16,6))
+            fig = plt.subplot(1,2,1)
+            fig.set_ylim(0,plotMax)
+            fig.errorbar(x=nClusOriginSet, y=meanStartAvgDist, yerr=stdStartAvgDist, linestyle='None', fmt='-_', color='orange', ecolor='blue')
+            fig.tick_params(colors=tickColors)
+            fig.set_title("Origin clusters", fontsize=30)
+            fig.set_xlabel(r"$k_O$", fontsize=20)
+            fig.set_ylabel(r"$\bar{d}$", fontsize=20, rotation=0)
+            fig = plt.subplot(1,2,2)
+            fig.set_ylim(0,plotMax)
+            fig.errorbar(x=nClusDestSet, y=np.mean(endAvgDists, axis=-1), yerr=np.std(endAvgDists, axis=-1)/(nIter**0.5), linestyle='None', fmt='-_', color='orange', ecolor='blue')
+            fig.tick_params(colors=tickColors)
+            fig.set_title("Destination clusters", fontsize=30)
+            fig.set_xlabel(r"$k_D$", fontsize=20)
+            fig.set_ylabel(r"$\bar{d}$", fontsize=20, rotation=0)
+            plt.savefig('./data/'+dataName+"_output/"+dataName+"_OD-clusteringPerformance_"+title+".pdf", dpi=300)
+            try:
+                plt.show()
+            except:
+                pass
 
     try:
         os.mkdir("./data/"+dataName+"_output")
@@ -1170,7 +1175,10 @@ def Main(distMatrices, trajectories, odTrajLabels, refTrajIndices, nClusStart, n
                         else:
                             cprint('Epsilon value not specified yet for {} algorithm in the code. default value 0.5 is used.'.format(distName), color='red', on_color='on_yellow')
                     model.n_clusters = nClus
-                    S, closestCluster, labels, subDistMatrix, shufSubDistMatrix = Silhouette(model=model, distMatrix=shufDistMatrix, trajIndices=shufRefTrajIndices)
+                    if modelName=='Spectral':
+                        S, closestCluster, labels, subDistMatrix, shufSubDistMatrix = Silhouette(model=model, distMatrix=np.max(shufDistMatrix)-shufDistMatrix, trajIndices=shufRefTrajIndices)
+                    else:
+                        S, closestCluster, labels, subDistMatrix, shufSubDistMatrix = Silhouette(model=model, distMatrix=shufDistMatrix, trajIndices=shufRefTrajIndices)
                     trajLabels = labels
                     for idxEval, (_, evalFunc, evalName) in enumerate(evalMeasures):
                         try:
